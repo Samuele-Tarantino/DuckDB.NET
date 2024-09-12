@@ -9,7 +9,7 @@ public partial class NativeMethods
     public static class LogicalType
     {
         [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_logical_type")]
-        public static extern DuckDBLogicalType CreateLogicalType(DuckDBType type);
+        public static extern DuckDBLogicalType DuckDBCreateLogicalType(DuckDBType type);
 
         [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_get_type_id")]
         public static extern DuckDBType DuckDBGetTypeId(DuckDBLogicalType type);
@@ -25,6 +25,9 @@ public partial class NativeMethods
 
         [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_enum_internal_type")]
         public static extern DuckDBType DuckDBEnumInternalType(DuckDBLogicalType type);
+
+        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_enum_dictionary_size")]
+        public static extern uint DuckDBEnumDictionarySize(DuckDBLogicalType type);
 
         [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_enum_dictionary_value")]
         public static extern IntPtr DuckDBEnumDictionaryValue(DuckDBLogicalType type, long index);

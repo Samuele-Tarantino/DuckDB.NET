@@ -9,8 +9,6 @@ namespace DuckDB.NET.Data;
 
 public class DuckDBAppender : IDisposable
 {
-    private static readonly ulong DuckDBVectorSize = DuckDBGlobalData.VectorSize;
-
     private bool closed;
     private readonly Native.DuckDBAppender nativeAppender;
     private readonly string qualifiedTableName;
@@ -21,7 +19,7 @@ public class DuckDBAppender : IDisposable
     private readonly DuckDBDataChunk dataChunk;
     private readonly VectorDataWriterBase[] vectorWriters;
 
-    internal unsafe DuckDBAppender(Native.DuckDBAppender appender, string qualifiedTableName)
+    internal DuckDBAppender(Native.DuckDBAppender appender, string qualifiedTableName)
     {
         nativeAppender = appender;
         this.qualifiedTableName = qualifiedTableName;
@@ -48,7 +46,7 @@ public class DuckDBAppender : IDisposable
             throw new InvalidOperationException("Appender is already closed");
         }
 
-        if (rowCount % DuckDBVectorSize==0)
+        if (rowCount % DuckDBGlobalData.VectorSize == 0)
         {
             AppendDataChunk();
 
@@ -74,6 +72,11 @@ public class DuckDBAppender : IDisposable
                 logicalType.Dispose();
             }
 
+            foreach (var writer in vectorWriters)
+            {
+                writer?.Dispose();
+            }
+
             var state = NativeMethods.Appender.DuckDBAppenderClose(nativeAppender);
             if (!state.IsSuccess())
             {
@@ -96,7 +99,7 @@ public class DuckDBAppender : IDisposable
         }
     }
 
-    private unsafe void InitVectorWriters()
+    private void InitVectorWriters()
     {
         for (long index = 0; index < vectorWriters.LongLength; index++)
         {
@@ -104,7 +107,7 @@ public class DuckDBAppender : IDisposable
 
             if (vectorWriters[index] == null)
             {
-                vectorWriters[index] = VectorDataWriterFactory.CreateWriter(vector, logicalTypes[index]); 
+                vectorWriters[index] = VectorDataWriterFactory.CreateWriter(vector, logicalTypes[index]);
             }
             else
             {

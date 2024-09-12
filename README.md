@@ -67,6 +67,10 @@ private static void PrintQueryResults(DbDataReader queryResult)
   }
 }
 ```
+## Known Issues
+
+When debugging your project that uses DuckDB.NET library, you may get the following error: **System.AccessViolationException: Attempted to read or write protected memory. This is often an indication that other memory is corrupt**. The error happens due to debugger interaction with the native memory. For a workaround check out [Debugger Options mess up debugging session during Marshalling
+](https://youtrack.jetbrains.com/issue/RIDER-114126/Debugger-Options-mess-up-debugging-session-during-Marshalling)
 
 ## Documentation
 
@@ -82,6 +86,8 @@ If you encounter a bug with the library [Create an Issue](https://github.com/Gio
 
 ## Sponsors
 
-A big thanks to the [AWS Open Source Software Fund](https://github.com/aws/dotnet-foss) for sponsoring the project!
+A big thanks to [DuckDB Labs](https://duckdblabs.com/) and [AWS Open Source Software Fund](https://github.com/aws/dotnet-foss) for sponsoring the project!
+
+[![DuckDB Labs](https://raw.githubusercontent.com/Giorgi/DuckDB.NET/main/.github/sponsors/duckdb-labs-logo.png)](https://duckdblabs.com/)
 
 [![AWS](https://raw.githubusercontent.com/Giorgi/DuckDB.NET/main/.github/sponsors/aws-logo-small.png)](https://github.com/aws/dotnet-foss)

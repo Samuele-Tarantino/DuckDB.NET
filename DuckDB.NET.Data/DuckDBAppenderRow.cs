@@ -14,7 +14,7 @@ public partial class DuckDBAppenderRow
     private int columnIndex = 0;
     private readonly string qualifiedTableName;
     private readonly VectorDataWriterBase[] vectorWriters;
-    private readonly int rowIndex;
+    private readonly ulong rowIndex;
 
     private BitArray columnCompiledArray;
 
@@ -24,7 +24,7 @@ public partial class DuckDBAppenderRow
     {
         this.qualifiedTableName = qualifiedTableName;
         this.vectorWriters = vectorWriters;
-        this.rowIndex = (int)rowIndex;
+        this.rowIndex = rowIndex;
 
         this.columnCompiledArray = new(vectorWriters.Length, false);
     }
@@ -86,6 +86,12 @@ public partial class DuckDBAppenderRow
 
     #endregion
 
+    #region Append Enum
+
+    public DuckDBAppenderRow AppendValue<TEnum>(TEnum? value) where TEnum : Enum => AppendValueInternal(value);
+
+    #endregion
+
     #region Append Float
 
     public DuckDBAppenderRow AppendValue(float? value) => AppendValueInternal(value);
@@ -127,7 +133,7 @@ public partial class DuckDBAppenderRow
     {
         CheckColumnAccess();
 
-        vectorWriters[columnIndex].AppendValue(value, rowIndex);
+        vectorWriters[columnIndex].WriteValue(value, rowIndex);
 
         columnIndex++;
 
