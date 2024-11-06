@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace DuckDB.NET.Native;
@@ -7,6 +8,9 @@ public partial class NativeMethods
 {
     public static class Value
     {
+        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_destroy_value")]
+        public static extern void DuckDBDestroyValue(out IntPtr config);
+        
         [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_varchar")]
         public static extern DuckDBValue DuckDBCreateVarchar(SafeUnmanagedMemoryHandle value);
 
@@ -55,8 +59,8 @@ public partial class NativeMethods
         [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_time")]
         public static extern DuckDBValue DuckDBCreateTime(DuckDBTime value);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_time_tz")]
-        public static extern DuckDBValue DuckDBCreateTimeTz(DuckDBTimeTz value);
+        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_time_tz_value")]
+        public static extern DuckDBValue DuckDBCreateTimeTz(DuckDBTimeTzStruct value);
 
         [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_timestamp")]
         public static extern DuckDBValue DuckDBCreateTimestamp(DuckDBTimestampStruct value);
@@ -66,8 +70,17 @@ public partial class NativeMethods
 
         [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_blob")]
         public static extern DuckDBValue DuckDBCreateBlob([In] byte[] value, long length);
+        
+        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_list_value")]
+        public static extern DuckDBValue DuckDBCreateListValue(DuckDBLogicalType logicalType, IntPtr[] values, long count);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_destroy_value")]
-        public static extern void DuckDBDestroyValue(out IntPtr config);
+        public static DuckDBValue DuckDBCreateListValue(DuckDBLogicalType logicalType, DuckDBValue[] values, int count)
+        {
+            var duckDBValue = DuckDBCreateListValue(logicalType, values.Select(item => item.DangerousGetHandle()).ToArray(), count);
+            
+            duckDBValue.SetChildValues(values);
+            
+            return duckDBValue;
+        }
     }
 }

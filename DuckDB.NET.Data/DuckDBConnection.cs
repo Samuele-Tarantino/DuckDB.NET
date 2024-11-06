@@ -17,6 +17,9 @@ public partial class DuckDBConnection : DbConnection
     private DuckDBConnectionString? parsedConnection;
     private ConnectionReference? connectionReference;
     private bool inMemoryDuplication = false;
+    
+    private static readonly StateChangeEventArgs FromClosedToOpenEventArgs = new(ConnectionState.Closed, ConnectionState.Open);
+    private static readonly StateChangeEventArgs FromOpenToClosedEventArgs = new(ConnectionState.Open, ConnectionState.Closed);
 
     #region Protected Properties
 
@@ -70,8 +73,11 @@ public partial class DuckDBConnection : DbConnection
         }
     }
 
-    internal DuckDBNativeConnection NativeConnection => connectionReference?.NativeConnection
-                                                        ?? throw new InvalidOperationException("The DuckDBConnection must be open to access the native connection.");
+    /// <summary>
+    /// Returns the native connection object that can be used to call DuckDB C API functions.
+    /// </summary>
+    public DuckDBNativeConnection NativeConnection => connectionReference?.NativeConnection
+                                                      ?? throw new InvalidOperationException("The DuckDBConnection must be open to access the native connection.");
 
     public override string ServerVersion => NativeMethods.Startup.DuckDBLibraryVersion().ToManagedString(false);
 
@@ -89,7 +95,13 @@ public partial class DuckDBConnection : DbConnection
             throw new InvalidOperationException("Connection is already closed.");
         }
 
-        Dispose(true);
+        if (connectionReference is not null) //Should always be the case
+        {
+            connectionManager.ReturnConnectionReference(connectionReference);
+        }
+
+        connectionState = ConnectionState.Closed;
+        OnStateChange(FromOpenToClosedEventArgs);
     }
 
     public override void Open()
@@ -104,6 +116,7 @@ public partial class DuckDBConnection : DbConnection
                                                   : connectionManager.GetConnectionReference(ParsedConnection);
 
         connectionState = ConnectionState.Open;
+        OnStateChange(FromClosedToOpenEventArgs);
     }
 
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
@@ -175,14 +188,10 @@ public partial class DuckDBConnection : DbConnection
     {
         if (disposing)
         {
+            // this check is to ensure exact same behavior as previous version
+            // where Close() was calling Dispose(true) instead of the other way around.
             if (connectionState == ConnectionState.Open)
-            {
-                if (connectionReference is not null) //Should always be the case
-                {
-                    connectionManager.ReturnConnectionReference(connectionReference);
-                }
-                connectionState = ConnectionState.Closed;
-            }
+                Close();
         }
 
         base.Dispose(disposing);

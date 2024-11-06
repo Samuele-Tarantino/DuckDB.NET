@@ -1,9 +1,9 @@
-using DuckDB.NET.Data.Extensions;
-using DuckDB.NET.Native;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Numerics;
+using DuckDB.NET.Data.Extensions;
+using DuckDB.NET.Native;
 
 namespace DuckDB.NET.Data.Internal;
 
@@ -60,7 +60,6 @@ internal static class DuckDBTypeMap
         { typeof(string), DuckDBType.Varchar},
         { typeof(decimal), DuckDBType.Decimal},
         { typeof(object), DuckDBType.Any},
-
     };
 
     public static DbType GetDbTypeForValue(object? value)
@@ -76,7 +75,8 @@ internal static class DuckDBTypeMap
         {
             return dbType;
         }
-        throw new InvalidOperationException($"Values of type {type.FullName} are not supported.");
+
+        return DbType.Object;
     }
 
     public static DuckDBLogicalType GetLogicalType<T>()
