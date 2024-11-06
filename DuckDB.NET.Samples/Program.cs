@@ -28,8 +28,8 @@ namespace DuckDB.NET.Samples
             //AdoNetSamples();
 
             //AdoNetBlobSample();
-            AdoNetDateTimeSample();
-            //AdoNetDuckDBBulkSamples();
+            //AdoNetDateTimeSample();
+            AdoNetDuckDBBulkSamples();
             //AdoNetSqlBulkSamples();
 
             //LowLevelBindingsSample();
@@ -261,10 +261,10 @@ namespace DuckDB.NET.Samples
             var bulk = duckDBConnection.CreateBulkCopy();
 
             try {
-                bulk.DestinationTableName = "\"main1\".\"entries\"";
+                bulk.DestinationTableName = "\"main\".\"entries\"";
 
-                //bulk.NotifyAfter = 100;
-                //bulk.DuckDBRowsCopied += Bulk_DuckDBRowsCopied;
+                bulk.NotifyAfter = 100;
+                bulk.DuckDBRowsCopied += Bulk_DuckDBRowsCopied;
 
                 var s = Stopwatch.StartNew();
 

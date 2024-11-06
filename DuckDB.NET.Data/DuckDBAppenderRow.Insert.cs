@@ -152,7 +152,7 @@ partial class DuckDBAppenderRow {
 
         CheckColumnAccess(columnOrdinal);
 
-        vectorWriters[columnOrdinal].AppendValue(value, rowIndex);
+        vectorWriters[columnOrdinal].WriteValue(value, rowIndex);
 
         columnCompiledArray[columnOrdinal] = true;
 
