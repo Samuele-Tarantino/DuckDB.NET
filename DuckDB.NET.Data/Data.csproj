@@ -3,13 +3,13 @@
   <PropertyGroup>
     <Description>DuckDB ADO.NET Provider for C#.</Description>
     <PackageReleaseNotes>
-	  Added support for creating user-defined scalar functions.
+	  Added support for binding nested List and Array values
 
-Added support for Varint type.
+Added support for binding List with null values
 
-Added support for writing to Enum columns when using managed Appender.
+Added support for inserting TIMESTAMP_MS, TIMESTAMP_NS and TIMESTAMP_S
 
-Updated to DuckDB v1.1.1
+Updated to DuckDB v1.2.0
     </PackageReleaseNotes>
     <SignAssembly>True</SignAssembly>
     <AssemblyOriginatorKeyFile>..\keyPair.snk</AssemblyOriginatorKeyFile>
@@ -21,12 +21,16 @@ Updated to DuckDB v1.1.1
     <Description>$(Description) $(NoNativeText)</Description>
   </PropertyGroup>
 
-  <ItemGroup>
+  <PropertyGroup Condition="'$(CI)' == 'true'">
+    <DefineConstants>$(DefineConstants);CI</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(CI)' == 'true'">
     <PackageReference Include="GitVersion.MsBuild" Version="5.11.1" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
-    <PackageReference Include="System.Memory" Version="4.5.5" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.0" />
+    <PackageReference Include="System.Memory" Version="4.6.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DuckDB.NET.Bindings\Bindings.csproj" />
