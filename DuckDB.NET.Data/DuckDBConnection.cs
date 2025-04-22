@@ -193,7 +193,9 @@ public partial class DuckDBConnection : DbConnection
             // this check is to ensure exact same behavior as previous version
             // where Close() was calling Dispose(true) instead of the other way around.
             if (connectionState == ConnectionState.Open)
+            {
                 Close();
+            }
         }
 
         base.Dispose(disposing);
@@ -249,5 +251,11 @@ public partial class DuckDBConnection : DbConnection
     public DuckDBBulkCopy CreateBulkCopy(DuckDBBulkCopyOptions bulkCopyOptions, DuckDBTransaction transaction) 
     {
         return new(this, bulkCopyOptions, transaction);
+    }
+
+    public DuckDBQueryProgress GetQueryProgress()
+    {
+        EnsureConnectionOpen();
+        return NativeMethods.Startup.DuckDBQueryProgress(NativeConnection);
     }
 }
