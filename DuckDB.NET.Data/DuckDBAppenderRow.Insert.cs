@@ -10,7 +10,7 @@ namespace DuckDB.NET.Data;
 
 partial class DuckDBAppenderRow {
 
-    public DuckDBAppenderRow InsertValue(object? value, int columnOrdinal) {
+    public IDuckDBAppenderRow InsertValue(object? value, int columnOrdinal) {
 
         if (value.IsNull())
             InsertValueInternal((int?)null, columnOrdinal);
@@ -70,84 +70,84 @@ partial class DuckDBAppenderRow {
         return this;
     }
 
-    public DuckDBAppenderRow InsertNullValue(int columnOrdinal) => InsertValueInternal<int?>(null, columnOrdinal); //Doesn't matter what type T we pass to Append when passing null.
+    public IDuckDBAppenderRow InsertNullValue(int columnOrdinal) => InsertValueInternal<int?>(null, columnOrdinal); //Doesn't matter what type T we pass to Append when passing null.
 
-    public DuckDBAppenderRow InsertValue(bool? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(bool? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
 #if NET6_0_OR_GREATER
 
-    public DuckDBAppenderRow InsertValue(byte[]? value, int columnOrdinal) => InsertSpan(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(byte[]? value, int columnOrdinal) => InsertSpan(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(Span<byte> value, int columnOrdinal) => InsertSpan(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(Span<byte> value, int columnOrdinal) => InsertSpan(value, columnOrdinal);
 #endif
 
-    public DuckDBAppenderRow InsertValue(string? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(string? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(decimal? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(decimal? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(Guid? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(Guid? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(BigInteger? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(BigInteger? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
     #region Append Signed Int
 
-    public DuckDBAppenderRow InsertValue(sbyte? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(sbyte? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(short? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(short? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(int? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(int? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(long? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(long? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
     #endregion
 
     #region Append Unsigned Int
 
-    public DuckDBAppenderRow InsertValue(byte? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(byte? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(ushort? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(ushort? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(uint? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(uint? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(ulong? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(ulong? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
     #endregion
 
     #region Append Float
 
-    public DuckDBAppenderRow InsertValue(float? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(float? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(double? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(double? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
     #endregion
 
     #region Append Temporal
 #if NET6_0_OR_GREATER
-    public DuckDBAppenderRow InsertValue(DateOnly? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(DateOnly? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(TimeOnly? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(TimeOnly? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 #endif
 
-    public DuckDBAppenderRow InsertValue(DuckDBDateOnly? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(DuckDBDateOnly? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(DuckDBTimeOnly? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(DuckDBTimeOnly? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
 
-    public DuckDBAppenderRow InsertValue(DateTime? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(DateTime? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(DateTimeOffset? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(DateTimeOffset? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
-    public DuckDBAppenderRow InsertValue(TimeSpan? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue(TimeSpan? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
     #endregion
 
     #region Composite Types
 
-    public DuckDBAppenderRow InsertValue<T>(IEnumerable<T>? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
+    public IDuckDBAppenderRow InsertValue<T>(IEnumerable<T>? value, int columnOrdinal) => InsertValueInternal(value, columnOrdinal);
 
     #endregion
 
-    private DuckDBAppenderRow InsertValueInternal<T>(T? value, int columnOrdinal) {
+    private IDuckDBAppenderRow InsertValueInternal<T>(T? value, int columnOrdinal) {
         insertMode = true;
 
         CheckColumnAccess(columnOrdinal);
@@ -161,7 +161,7 @@ partial class DuckDBAppenderRow {
 
 #if NET6_0_OR_GREATER
 
-    private unsafe DuckDBAppenderRow InsertSpan(Span<byte> val, int columnOrdinal) {
+    private unsafe IDuckDBAppenderRow InsertSpan(Span<byte> val, int columnOrdinal) {
         if (val == null) {
             return AppendNullValue();
         }

@@ -1,12 +1,13 @@
 ﻿using DuckDB.NET.Data.DataChunk.Writer;
 using DuckDB.NET.Native;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Numerics;
 
 namespace DuckDB.NET.Data;
 
-public class DuckDBAppenderRow : IDuckDBAppenderRow
+public partial class DuckDBAppenderRow : IDuckDBAppenderRow
 {
     private int columnIndex = 0;
     private readonly string qualifiedTableName;
@@ -14,6 +15,9 @@ public class DuckDBAppenderRow : IDuckDBAppenderRow
     private readonly ulong rowIndex;
     private readonly DuckDBDataChunk dataChunk;
     private readonly Native.DuckDBAppender nativeAppender;
+
+    private BitArray columnCompiledArray;
+    private bool insertMode = true;
 
     internal DuckDBAppenderRow(string qualifiedTableName, VectorDataWriterBase[] vectorWriters,
                                ulong rowIndex, DuckDBDataChunk dataChunk, Native.DuckDBAppender nativeAppender)
@@ -23,13 +27,23 @@ public class DuckDBAppenderRow : IDuckDBAppenderRow
         this.rowIndex = rowIndex;
         this.dataChunk = dataChunk;
         this.nativeAppender = nativeAppender;
+
+        this.columnCompiledArray = new(vectorWriters.Length, false);
     }
 
     public void EndRow()
     {
-        if (columnIndex < vectorWriters.Length)
+        if (insertMode) 
         {
-            throw new InvalidOperationException($"The table {qualifiedTableName} has {vectorWriters.Length} columns but you specified only {columnIndex} values");
+            for (int ordinal = 0; ordinal < vectorWriters.Length; ordinal++)
+                if (!columnCompiledArray[ordinal])
+                    InsertNullValue(ordinal);
+        } 
+        else 
+        {
+            if (columnIndex < vectorWriters.Length) {
+                throw new InvalidOperationException($"The table {qualifiedTableName} has {vectorWriters.Length} columns but you specified only {columnIndex} values");
+            }
         }
     }
 
@@ -171,6 +185,8 @@ public class DuckDBAppenderRow : IDuckDBAppenderRow
 
 public interface IDuckDBAppenderRow
 {
+    IDuckDBAppenderRow InsertValue(object? value, int columnOrdinal);
+
     void EndRow();
     IDuckDBAppenderRow AppendNullValue();
     IDuckDBAppenderRow AppendValue(bool? value);
