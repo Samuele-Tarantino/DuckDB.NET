@@ -20,6 +20,12 @@ partial class DuckDBConnection
 {
 #if NET8_0_OR_GREATER
     [Experimental("DuckDBNET001")]
+    public void RegisterTableFunction(string name, Func<TableFunction> resultCallback, Action<object?, IDuckDBDataWriter[], ulong> mapperCallback)
+    {
+        RegisterTableFunctionInternal(name, (_) => resultCallback(), mapperCallback);
+    }
+
+    [Experimental("DuckDBNET001")]
     public void RegisterTableFunction<T>(string name, Func<IReadOnlyList<IDuckDBValueReader>, TableFunction> resultCallback, Action<object?, IDuckDBDataWriter[], ulong> mapperCallback)
     {
         RegisterTableFunctionInternal(name, resultCallback, mapperCallback, typeof(T));
@@ -96,7 +102,7 @@ partial class DuckDBConnection
             throw new InvalidOperationException($"Error registering user defined table function: {name}");
         }
 
-        NativeMethods.TableFunction.DuckDBDestroyTableFunction(out function);
+        NativeMethods.TableFunction.DuckDBDestroyTableFunction(ref function);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]

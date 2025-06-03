@@ -1,5 +1,6 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 
 namespace DuckDB.NET.Native;
@@ -8,7 +9,7 @@ public class DuckDBDatabase() : SafeHandleZeroOrMinusOneIsInvalid(true)
 {
     protected override bool ReleaseHandle()
     {
-        NativeMethods.Startup.DuckDBClose(out handle);
+        NativeMethods.Startup.DuckDBClose(ref handle);
         return true;
     }
 }
@@ -17,7 +18,7 @@ public class DuckDBNativeConnection() : SafeHandleZeroOrMinusOneIsInvalid(true)
 {
     protected override bool ReleaseHandle()
     {
-        NativeMethods.Startup.DuckDBDisconnect(out handle);
+        NativeMethods.Startup.DuckDBDisconnect(ref handle);
         return true;
     }
 
@@ -31,7 +32,7 @@ public class DuckDBPreparedStatement() : SafeHandleZeroOrMinusOneIsInvalid(true)
 {
     protected override bool ReleaseHandle()
     {
-        NativeMethods.PreparedStatements.DuckDBDestroyPrepare(out handle);
+        NativeMethods.PreparedStatements.DuckDBDestroyPrepare(ref handle);
         return true;
     }
 }
@@ -40,7 +41,7 @@ public class DuckDBConfig() : SafeHandleZeroOrMinusOneIsInvalid(true)
 {
     protected override bool ReleaseHandle()
     {
-        NativeMethods.Configuration.DuckDBDestroyConfig(out handle);
+        NativeMethods.Configuration.DuckDBDestroyConfig(ref handle);
         return true;
     }
 }
@@ -49,7 +50,7 @@ public class DuckDBAppender() : SafeHandleZeroOrMinusOneIsInvalid(true)
 {
     protected override bool ReleaseHandle()
     {
-        return NativeMethods.Appender.DuckDBDestroyAppender(out handle).IsSuccess();
+        return NativeMethods.Appender.DuckDBDestroyAppender(ref handle).IsSuccess();
     }
 }
 
@@ -57,7 +58,7 @@ public class DuckDBExtractedStatements() : SafeHandleZeroOrMinusOneIsInvalid(tru
 {
     protected override bool ReleaseHandle()
     {
-        NativeMethods.ExtractStatements.DuckDBDestroyExtracted(out handle);
+        NativeMethods.ExtractStatements.DuckDBDestroyExtracted(ref handle);
 
         return true;
     }
@@ -67,7 +68,7 @@ public class DuckDBLogicalType() : SafeHandleZeroOrMinusOneIsInvalid(true)
 {
     protected override bool ReleaseHandle()
     {
-        NativeMethods.LogicalType.DuckDBDestroyLogicalType(out handle);
+        NativeMethods.LogicalType.DuckDBDestroyLogicalType(ref handle);
         return true;
     }
 }
@@ -85,7 +86,7 @@ public class DuckDBDataChunk : SafeHandleZeroOrMinusOneIsInvalid
 
     protected override bool ReleaseHandle()
     {
-        NativeMethods.DataChunks.DuckDBDestroyDataChunk(out handle);
+        NativeMethods.DataChunks.DuckDBDestroyDataChunk(ref handle);
         return true;
     }
 }
@@ -101,7 +102,7 @@ public class DuckDBValue() : SafeHandleZeroOrMinusOneIsInvalid(true), IDuckDBVal
             value.Dispose();
         }
         
-        NativeMethods.Value.DuckDBDestroyValue(out handle);
+        NativeMethods.Value.DuckDBDestroyValue(ref handle);
         return true;
     }
 
@@ -140,7 +141,8 @@ public class DuckDBValue() : SafeHandleZeroOrMinusOneIsInvalid(true), IDuckDBVal
             DuckDBType.Float => Cast(NativeMethods.Value.DuckDBGetFloat(this)),
             DuckDBType.Double => Cast(NativeMethods.Value.DuckDBGetDouble(this)),
             
-            DuckDBType.Decimal => Cast(decimal.Parse(NativeMethods.Value.DuckDBGetVarchar(this))),
+            DuckDBType.Decimal => Cast(decimal.Parse(NativeMethods.Value.DuckDBGetVarchar(this), NumberStyles.Any, CultureInfo.InvariantCulture)),
+            
             DuckDBType.Uuid => Cast(new Guid(NativeMethods.Value.DuckDBGetVarchar(this))),
             
             DuckDBType.HugeInt => Cast(NativeMethods.Value.DuckDBGetHugeInt(this).ToBigInteger()),

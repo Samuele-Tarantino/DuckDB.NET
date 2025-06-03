@@ -15,9 +15,9 @@ partial class DuckDBConnection
 {
 #if NET8_0_OR_GREATER
     [Experimental("DuckDBNET001")]
-    public void RegisterScalarFunction<TResult>(string name, Action<IReadOnlyList<IDuckDBDataReader>, IDuckDBDataWriter, ulong> action, bool isPureFunction = false)
+    public void RegisterScalarFunction<TResult>(string name, Action<IDuckDBDataWriter, ulong> action, bool isPureFunction = false)
     {
-        RegisterScalarMethod(name, action, TypeExtensions.GetLogicalType<TResult>(), varargs: false, !isPureFunction);
+        RegisterScalarMethod(name, (_, w, index) => action(w, index), TypeExtensions.GetLogicalType<TResult>(), varargs: false, !isPureFunction);
     }
 
     [Experimental("DuckDBNET001")]
@@ -95,7 +95,7 @@ partial class DuckDBConnection
 
         var state = NativeMethods.ScalarFunction.DuckDBRegisterScalarFunction(NativeConnection, function);
 
-        NativeMethods.ScalarFunction.DuckDBDestroyScalarFunction(out function);
+        NativeMethods.ScalarFunction.DuckDBDestroyScalarFunction(ref function);
 
         if (!state.IsSuccess())
         {
