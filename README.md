@@ -1,5 +1,13 @@
 # DuckDB.NET
 
+## Irion Build 
+
+```sh
+dotnet build --configuration Release /p:BuildType=Full
+```
+
+## Intro
+
 [DuckDB](https://duckdb.org/) bindings for C#
 
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/Giorgi/DuckDB.NET/ci.yml?branch=main&logo=GitHub&style=for-the-badge)](https://github.com/Giorgi/DuckDB.NET/actions/workflows/ci.yml)
