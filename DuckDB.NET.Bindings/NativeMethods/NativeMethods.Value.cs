@@ -47,6 +47,9 @@ public partial class NativeMethods
         [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_uhugeint")]
         public static extern DuckDBValue DuckDBCreateUHugeInt(DuckDBUHugeInt value);
 
+        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_decimal")]
+        public static extern DuckDBValue DuckDBCreateDecimal(DuckDBDecimal value);
+
         [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_float")]
         public static extern DuckDBValue DuckDBCreateFloat(float value);
 
@@ -82,6 +85,9 @@ public partial class NativeMethods
 
         [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_blob")]
         public static extern DuckDBValue DuckDBCreateBlob([In] byte[] value, long length);
+
+        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_uuid")]
+        public static extern DuckDBValue DuckDBCreateUuid(DuckDBHugeInt value);
 
         [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_get_bool")]
         public static extern bool DuckDBGetBool(DuckDBValue value);

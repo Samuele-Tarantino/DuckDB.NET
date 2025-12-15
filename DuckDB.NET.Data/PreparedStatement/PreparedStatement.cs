@@ -111,7 +111,7 @@ internal sealed class PreparedStatement : IDisposable
         using var parameterLogicalType = NativeMethods.PreparedStatements.DuckDBParamLogicalType(preparedStatement, index);
         var duckDBType = NativeMethods.LogicalType.DuckDBGetTypeId(parameterLogicalType);
 
-        using var duckDBValue = parameter.Value.ToDuckDBValue(parameterLogicalType, duckDBType);
+        using var duckDBValue = parameter.Value.ToDuckDBValue(parameterLogicalType, duckDBType, parameter.DbType);
 
         var result = NativeMethods.PreparedStatements.DuckDBBindValue(preparedStatement, index, duckDBValue);
 

@@ -1,8 +1,6 @@
-using System;
-using System.IO;
 using DuckDB.NET.Data;
 using FluentAssertions;
-using Microsoft.VisualStudio.TestPlatform.PlatformAbstractions.Interfaces;
+using System.IO;
 using Xunit;
 
 namespace DuckDB.NET.Test.Parameters;
@@ -127,5 +125,23 @@ public class BlobParameterTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         }
 
         reader.GetFieldType(1).Should().Be(typeof(Stream));
+    }
+
+    [Fact(Skip = "Failing on mac")]
+    public void BindParameterWithoutTable()
+    {
+        var value = Faker.Random.Bytes(Faker.Random.Int(1, 100));
+        
+        Command.CommandText = "SELECT ?;";
+        Command.Parameters.Add(new DuckDBParameter(value));
+        
+        var result = Command.ExecuteScalar();
+        
+        using var stream = (Stream)result;
+        var resultBytes = new byte[value.Length];
+        
+        stream.Read(resultBytes, 0, resultBytes.Length);
+
+        resultBytes.Should().BeEquivalentTo(value);
     }
 }
