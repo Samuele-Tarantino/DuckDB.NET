@@ -3,14 +3,12 @@
   <PropertyGroup>
     <Description>DuckDB Bindings for C#.</Description>
     <PackageReleaseNotes>
-	  Added support for handling ± dates and timestamps. Credits to @rynoV for the PR
-
-Updated to DuckDB v1.4.3
+Updated to DuckDB v1.4.4
     </PackageReleaseNotes>
     <RootNamespace>DuckDB.NET.Native</RootNamespace>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
 		<!-- Set the duckdb runtime version that will be used -->
-    <DuckDbArtifactRoot Condition=" '$(DuckDbArtifactRoot)' == '' ">\\archsrv01\Shared\duckdb-extension\v1.4.3</DuckDbArtifactRoot>
+    <DuckDbArtifactRoot Condition=" '$(DuckDbArtifactRoot)' == '' ">\\archsrv01\Shared\duckdb-extension\v1.4.4</DuckDbArtifactRoot>
     <SignAssembly>True</SignAssembly>
     <AssemblyOriginatorKeyFile>..\keyPair.snk</AssemblyOriginatorKeyFile>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
