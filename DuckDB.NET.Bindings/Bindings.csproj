@@ -8,8 +8,9 @@
 Updated to DuckDB v1.4.3
     </PackageReleaseNotes>
     <RootNamespace>DuckDB.NET.Native</RootNamespace>
-    <RuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx</RuntimeIdentifiers>
-    <DuckDbArtifactRoot Condition=" '$(DuckDbArtifactRoot)' == '' ">https://github.com/duckdb/duckdb/releases/download/v1.4.3</DuckDbArtifactRoot>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+		<!-- Set the duckdb runtime version that will be used -->
+    <DuckDbArtifactRoot Condition=" '$(DuckDbArtifactRoot)' == '' ">\\archsrv01\Shared\duckdb-extension\v1.4.3</DuckDbArtifactRoot>
     <SignAssembly>True</SignAssembly>
     <AssemblyOriginatorKeyFile>..\keyPair.snk</AssemblyOriginatorKeyFile>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -22,17 +23,14 @@ Updated to DuckDB v1.4.3
   
   <!-- Download and include the native libraries into the NuGet package-->
   <Target Name="DownloadNativeLibs" BeforeTargets="GenerateAdditionalSources" Condition="'$(BuildType)' == 'Full' ">
-    <MSBuild Projects="DownloadNativeLibs.targets" Properties="Rid=win-x64;LibUrl=$(DuckDbArtifactRoot)/libduckdb-windows-amd64.zip" />
-    <MSBuild Condition="'$(SkipArm)' == ''" Projects="DownloadNativeLibs.targets" Properties="Rid=win-arm64;LibUrl=$(DuckDbArtifactRoot)/libduckdb-windows-arm64.zip" />
-    <MSBuild Projects="DownloadNativeLibs.targets" Properties="Rid=linux-x64;LibUrl=$(DuckDbArtifactRoot)/libduckdb-linux-amd64.zip" />
-    <MSBuild Condition="'$(SkipArm)' == ''" Projects="DownloadNativeLibs.targets" Properties="Rid=linux-arm64;LibUrl=$(DuckDbArtifactRoot)/libduckdb-linux-arm64.zip" />
-    <MSBuild Projects="DownloadNativeLibs.targets" Properties="Rid=osx;LibUrl=$(DuckDbArtifactRoot)/libduckdb-osx-universal.zip" />
+    <MSBuild Projects="DownloadNativeLibs.targets" Properties="Rid=win-x64;LibUrl=$(DuckDbArtifactRoot)/win-x64.zip" />
+    <MSBuild Projects="DownloadNativeLibs.targets" Properties="Rid=linux-x64;LibUrl=$(DuckDbArtifactRoot)/linux-x64.zip" />
   </Target>
   <Target Name="CleanNativeLibs" BeforeTargets="Clean" Condition="'$(BuildType)' == 'Full' ">
     <RemoveDir Directories="obj\runtimes" />
   </Target>
   <ItemGroup Condition="'$(BuildType)' == 'Full' ">
-    <None Include="obj\runtimes\**\*.dll;obj\runtimes\**\*.so;obj\runtimes\**\*.dylib;">
+    <None Include="obj\runtimes\**\*.dll;obj\runtimes\**\*.so">
       <Visible>false</Visible>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Pack>true</Pack>

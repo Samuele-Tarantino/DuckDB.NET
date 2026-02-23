@@ -15,12 +15,12 @@
 
     <Year>$([System.DateTime]::Today.Year)</Year>
 
-    <Authors>Giorgi Dalakishvili</Authors>
-    <Company>Giorgi Dalakishvili</Company>
+    <Authors>Giorgi Dalakishvili;Irion</Authors>
+    <Company>Giorgi Dalakishvili;Irion</Company>
     <Copyright>Copyright © 2020 - $(Year) Giorgi Dalakishvili</Copyright>
 
-    <Product>DuckDB.NET.$(MSBuildProjectName)</Product>
-    <PackageId>DuckDB.NET.$(MSBuildProjectName)</PackageId>
+    <Product>Irion.DuckDB.NET.$(MSBuildProjectName)</Product>
+    <PackageId>Irion.DuckDB.NET.$(MSBuildProjectName)</PackageId>
     <PackageTags>DuckDB;ADO.NET;Database;Olap;Embedded</PackageTags>
     <PackageIcon>Logo.jpg</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -68,6 +68,20 @@ private static void PrintQueryResults(DbDataReader queryResult)
 }
 ```
 
+### Irion Build
+
+Modify the version of duckdb runtime in `DuckDB.NET.Bindings/Bindings.csproj` 
+Set the version to build Irion-compatible packages and pack:
+```sh
+$env:DUCKDB_VERSION_BUILD="1.4.3.5"
+dotnet pack DuckDB.NET.Bindings/Bindings.csproj -c Release /p:BuildType=Full /p:SkipArm=True /p:Version=$env:DUCKDB_VERSION_BUILD /p:FileVersion=$env:DUCKDB_VERSION_BUILD /p:PackageVersion=$env:DUCKDB_VERSION_BUILD
+dotnet pack DuckDB.NET.Data/Data.csproj -c Release /p:BuildType=Full  /p:SkipArm=True /p:Version=$env:DUCKDB_VERSION_BUILD /p:FileVersion=$env:DUCKDB_VERSION_BUILD /p:PackageVersion=$env:DUCKDB_VERSION_BUILD
+
+dotnet nuget push --source "Repository" --api-key az C:\Sources\github\DuckDB.NET\DuckDB.NET.Data\bin\Release\Irion.DuckDB.NET.Data.Full.$env:DUCKDB_VERSION_BUILD.nupkg
+dotnet nuget push --source "Repository" --api-key az C:\Sources\github\DuckDB.NET\DuckDB.NET.Bindings\bin\Release\Irion.DuckDB.NET.Bindings.Full.$env:DUCKDB_VERSION_BUILD.nupkg
+```
+
+
 ### MotherDuck
 
 To connect to [MotherDuck](https://motherduck.com):

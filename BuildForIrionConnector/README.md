@@ -12,12 +12,14 @@ into this project, and confirm that the resulting `deps.json` carries the expect
 
 2. From the repo root, pack the Full build while overriding the version metadata:
 
-   ```powershell
-	 $env:DUCKDB_VERSION_BUILD="1.3.2"
-   dotnet pack DuckDB.NET.Data/Data.csproj -c Release /p:BuildType=Full /p:Version=$env:DUCKDB_VERSION_BUILD /p:FileVersion=$env:DUCKDB_VERSION_BUILD /p:PackageVersion=$env:DUCKDB_VERSION_BUILD
-   ```
+```powershell
+$env:DUCKDB_VERSION_BUILD="1.4.3.1"
+dotnet pack DuckDB.NET.Bindings/Bindings.csproj -c Release /p:BuildType=Full /p:Version=$env:DUCKDB_VERSION_BUILD /p:FileVersion=$env:DUCKDB_VERSION_BUILD /p:PackageVersion=$env:DUCKDB_VERSION_BUILD
+dotnet pack DuckDB.NET.Data/Data.csproj -c Release /p:BuildType=Full  /p:Version=$env:DUCKDB_VERSION_BUILD /p:FileVersion=$env:DUCKDB_VERSION_BUILD /p:PackageVersion=$env:DUCKDB_VERSION_BUILD
+```
 
-   The `.nupkg` lands in `DuckDB.NET.Data/bin/Release`.
+
+The `.nupkg` lands in `DuckDB.NET.Data/bin/Release`.
 
 3. Restore this app against that local folder so it can pull
    `DuckDB.NET.Data.Full` `%DUCKDB_VERSION%` (and its transitive
@@ -43,3 +45,13 @@ into this project, and confirm that the resulting `deps.json` carries the expect
 This workflow mirrors how the Irion connector (or any consumer) restores the
 package from a feed: once the package is restored, the consuming app's `.deps`
 file records the native binaries that the DuckDB connector needs to load.
+
+
+```bash
+dotnet nuget push --source "Repository" --api-key az C:\Sources\github\DuckDB.NET\DuckDB.NET.Data\bin\Release\Irion.DuckDB.NET.Data.Full.1.4.3.1.nupkg
+```
+
+
+```bash
+dotnet nuget push --source "Repository" --api-key az C:\Sources\github\DuckDB.NET\DuckDB.NET.Bindings\bin\Release\Irion.DuckDB.NET.Bindings.Full.1.4.3.1.nupkg
+```
