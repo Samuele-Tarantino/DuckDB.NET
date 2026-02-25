@@ -2,8 +2,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildForIrionConnector", "BuildForIrionConnector\BuildForIrionConnector.csproj", "{06201231-6A07-7621-4534-178C3173F54E}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DuckDB.NET.Bindings", "DuckDB.NET.Bindings", "{2565BDDD-0BBD-A016-D7A8-AE1C1A40490B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DuckDB.NET.Data", "DuckDB.NET.Data", "{DAB882C8-E937-DD14-E8AE-0C4B55C73185}"
@@ -26,10 +24,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{06201231-6A07-7621-4534-178C3173F54E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{06201231-6A07-7621-4534-178C3173F54E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{06201231-6A07-7621-4534-178C3173F54E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{06201231-6A07-7621-4534-178C3173F54E}.Release|Any CPU.Build.0 = Release|Any CPU
 		{B6EC05BE-D86C-D343-D0CC-573AF26DFFBD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{B6EC05BE-D86C-D343-D0CC-573AF26DFFBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B6EC05BE-D86C-D343-D0CC-573AF26DFFBD}.Release|Any CPU.ActiveCfg = Release|Any CPU

@@ -1,5 +1,4 @@
 <Solution>
-  <Project Path="BuildForIrionConnector/BuildForIrionConnector.csproj" />
   <Project Path="DuckDB.NET.Bindings/Bindings.csproj" />
   <Project Path="DuckDB.NET.Data/Data.csproj" />
   <Project Path="DuckDB.NET.Samples/Samples.csproj" />

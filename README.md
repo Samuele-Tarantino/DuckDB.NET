@@ -68,18 +68,113 @@ private static void PrintQueryResults(DbDataReader queryResult)
 }
 ```
 
-### Irion Build
+### Irion Package Build
 
-Modify the version of duckdb runtime in `DuckDB.NET.Bindings/Bindings.csproj` 
-Set the version to build Irion-compatible packages and pack:
-```sh
-$env:DUCKDB_VERSION_BUILD="1.4.3.5"
-dotnet pack DuckDB.NET.Bindings/Bindings.csproj -c Release /p:BuildType=Full /p:SkipArm=True /p:Version=$env:DUCKDB_VERSION_BUILD /p:FileVersion=$env:DUCKDB_VERSION_BUILD /p:PackageVersion=$env:DUCKDB_VERSION_BUILD
-dotnet pack DuckDB.NET.Data/Data.csproj -c Release /p:BuildType=Full  /p:SkipArm=True /p:Version=$env:DUCKDB_VERSION_BUILD /p:FileVersion=$env:DUCKDB_VERSION_BUILD /p:PackageVersion=$env:DUCKDB_VERSION_BUILD
+Use this workflow to build and publish Irion packages with bundled native DuckDB runtimes.
+The standard flow uses:
 
-dotnet nuget push --source "Repository" --api-key az C:\Sources\github\DuckDB.NET\DuckDB.NET.Data\bin\Release\Irion.DuckDB.NET.Data.Full.$env:DUCKDB_VERSION_BUILD.nupkg
-dotnet nuget push --source "Repository" --api-key az C:\Sources\github\DuckDB.NET\DuckDB.NET.Bindings\bin\Release\Irion.DuckDB.NET.Bindings.Full.$env:DUCKDB_VERSION_BUILD.nupkg
+- `build/irion.version` as the single source of truth for the package version
+- `scripts/irion-package.ps1` to show/set/bump, check remote, build, pack and push
+
+#### 1. Prerequisites
+
+1. Build DuckDB runtimes for `linux-x64` and `win-x64`.
+2. Make sure the runtime archives are available as `win-x64.zip` and `linux-x64.zip`.
+3. Set `DuckDbArtifactRoot` in `DuckDB.NET.Bindings/Bindings.csproj` to the folder/share containing those archives.
+
+`DuckDB.NET.Bindings/Bindings.csproj` expects:
+
+```text
+$(DuckDbArtifactRoot)/win-x64.zip
+$(DuckDbArtifactRoot)/linux-x64.zip
 ```
+
+#### 2. Version management (recommended)
+
+Current version:
+
+```powershell
+.\scripts\irion-package.ps1 -Command show
+```
+
+Set explicit version:
+
+```powershell
+.\scripts\irion-package.ps1 -Command set -Version 1.4.4.1
+```
+
+Bump version in `build/irion.version`:
+
+```powershell
+.\scripts\irion-package.ps1 -Command bump -Part revision  # 1.4.4.1 -> 1.4.4.2
+.\scripts\irion-package.ps1 -Command bump -Part build     # 1.4.4.1 -> 1.4.5.0
+.\scripts\irion-package.ps1 -Command bump -Part minor     # 1.4.4.1 -> 1.5.0.0
+.\scripts\irion-package.ps1 -Command bump -Part major     # 1.4.4.1 -> 2.0.0.0
+```
+
+Check latest published versions on the configured feed:
+
+```powershell
+.\scripts\irion-package.ps1 -Command remote-show -NuGetSource "Repository"
+```
+
+You can override package IDs if needed:
+
+```powershell
+.\scripts\irion-package.ps1 -Command remote-show -NuGetSource "Repository" -DataPackageId "Irion.DuckDB.NET.Data.Full" -BindingsPackageId "Irion.DuckDB.NET.Bindings.Full"
+```
+
+#### 3. Build (Full)
+
+```powershell
+.\scripts\irion-package.ps1 -Command build
+```
+
+#### 4. Pack Irion NuGet packages
+
+```powershell
+.\scripts\irion-package.ps1 -Command pack
+```
+
+The script reads `build/irion.version`, sets `DUCKDB_VERSION_BUILD` internally, and uses that same value for:
+
+- `/p:Version`
+- `/p:FileVersion`
+- `/p:PackageVersion`
+
+Generated packages:
+
+- `DuckDB.NET.Bindings/bin/Release/Irion.DuckDB.NET.Bindings.Full.<version>.nupkg`
+- `DuckDB.NET.Data/bin/Release/Irion.DuckDB.NET.Data.Full.<version>.nupkg`
+
+#### 5. Push packages to feed
+
+```powershell
+.\scripts\irion-package.ps1 -Command push -NuGetSource "Repository" -ApiKey "az"
+```
+
+#### 6. One-shot pack + push
+
+```powershell
+.\scripts\irion-package.ps1 -Command packpush -NuGetSource "Repository" -ApiKey "az"
+```
+
+#### 7. Manual equivalent (for CI or troubleshooting)
+
+```powershell
+$env:DUCKDB_VERSION_BUILD = (Get-Content .\build\irion.version -Raw).Trim()
+dotnet pack DuckDB.NET.Bindings/Bindings.csproj -c Release /p:BuildType=Full /p:Version=$env:DUCKDB_VERSION_BUILD /p:FileVersion=$env:DUCKDB_VERSION_BUILD /p:PackageVersion=$env:DUCKDB_VERSION_BUILD
+dotnet pack DuckDB.NET.Data/Data.csproj -c Release /p:BuildType=Full /p:Version=$env:DUCKDB_VERSION_BUILD /p:FileVersion=$env:DUCKDB_VERSION_BUILD /p:PackageVersion=$env:DUCKDB_VERSION_BUILD
+dotnet nuget push --source "Repository" --api-key az .\DuckDB.NET.Data\bin\Release\Irion.DuckDB.NET.Data.Full.$env:DUCKDB_VERSION_BUILD.nupkg
+dotnet nuget push --source "Repository" --api-key az .\DuckDB.NET.Bindings\bin\Release\Irion.DuckDB.NET.Bindings.Full.$env:DUCKDB_VERSION_BUILD.nupkg
+```
+
+Quick checklist before publishing:
+
+1. `DuckDbArtifactRoot` points to the correct runtime artifacts.
+2. `build/irion.version` contains the final release version.
+3. Both `dotnet pack` commands completed successfully.
+4. Both packages were pushed to the target feed.
 
 
 ### MotherDuck
