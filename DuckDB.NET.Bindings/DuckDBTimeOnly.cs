@@ -1,6 +1,4 @@
 using DuckDB.NET.Native.Extensions;
-using System;
-using System.Runtime.InteropServices;
 
 namespace DuckDB.NET.Native;
 
@@ -38,7 +36,6 @@ public readonly struct DuckDBTimeOnly(byte hour, byte min, byte sec, int microse
     public static explicit operator DateTime(DuckDBTimeOnly timeOnly) => timeOnly.ToDateTime();
     public static explicit operator DuckDBTimeOnly(DateTime dateTime) => FromDateTime(dateTime);
 
-#if NET6_0_OR_GREATER
     internal static DuckDBTimeOnly FromTimeOnly(TimeOnly timeOnly)
     {
         var microsecond = timeOnly.GetMicrosecond();
@@ -48,6 +45,4 @@ public readonly struct DuckDBTimeOnly(byte hour, byte min, byte sec, int microse
     public static implicit operator TimeOnly(DuckDBTimeOnly time) => new(time.Ticks);
 
     public static implicit operator DuckDBTimeOnly(TimeOnly time) => FromTimeOnly(time);
-
-#endif
 }

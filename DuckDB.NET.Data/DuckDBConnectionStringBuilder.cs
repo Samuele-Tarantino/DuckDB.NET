@@ -1,8 +1,4 @@
 using DuckDB.NET.Data.Connection;
-using DuckDB.NET.Native;
-using System;
-using System.Collections.Generic;
-using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 
 namespace DuckDB.NET.Data;
@@ -30,7 +26,7 @@ public class DuckDBConnectionStringBuilder : DbConnectionStringBuilder
         for (var index = 0; index < configCount; index++)
         {
             NativeMethods.Configuration.DuckDBGetConfigFlag(index, out var name, out _);
-            ConfigurationOptions.Add(name.ToManagedString(false));
+            ConfigurationOptions.Add(name);
         }
 
 #if CI
@@ -81,9 +77,7 @@ public class DuckDBConnectionStringBuilder : DbConnectionStringBuilder
         return new DuckDBConnectionString(dataSource, inMemory, isShared, configurations);
     }
 
-#if NET6_0_OR_GREATER
     [AllowNull]
-#endif
     public override object this[string keyword]
     {
         get => base[keyword];

@@ -1,11 +1,6 @@
-﻿using DuckDB.NET.Data.Connection;
+using DuckDB.NET.Data.Connection;
 using DuckDB.NET.Data.DataChunk.Reader;
 using DuckDB.NET.Data.DataChunk.Writer;
-using DuckDB.NET.Data.Extensions;
-using DuckDB.NET.Native;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -13,55 +8,40 @@ namespace DuckDB.NET.Data;
 
 partial class DuckDBConnection
 {
-#if NET8_0_OR_GREATER
-    [Experimental("DuckDBNET001")]
-    public void RegisterScalarFunction<TResult>(string name, Action<IDuckDBDataWriter, ulong> action, bool isPureFunction = false)
+    public void RegisterScalarFunction<TResult>(string name, Action<IDuckDBDataWriter, ulong> action, ScalarFunctionOptions? options = null)
     {
-        RegisterScalarMethod(name, (_, w, index) => action(w, index), TypeExtensions.GetLogicalType<TResult>(), varargs: false, !isPureFunction);
+        RegisterScalarMethod(name, (_, w, index) => action(w, index), TypeExtensions.GetLogicalType<TResult>(), varargs: false, options);
     }
 
-    [Experimental("DuckDBNET001")]
-    public void RegisterScalarFunction<T, TResult>(string name, Action<IReadOnlyList<IDuckDBDataReader>, IDuckDBDataWriter, ulong> action, bool isPureFunction = true, bool @params = false)
+    public void RegisterScalarFunction<T, TResult>(string name, Action<IReadOnlyList<IDuckDBDataReader>, IDuckDBDataWriter, ulong> action, ScalarFunctionOptions? options = null, bool @params = false)
     {
-        RegisterScalarMethod(name, action, TypeExtensions.GetLogicalType<TResult>(), @params, !isPureFunction, TypeExtensions.GetLogicalType<T>());
+        RegisterScalarMethod(name, action, TypeExtensions.GetLogicalType<TResult>(), @params, options, TypeExtensions.GetLogicalType<T>());
     }
 
-    [Experimental("DuckDBNET001")]
-    public void RegisterScalarFunction<T1, T2, TResult>(string name, Action<IReadOnlyList<IDuckDBDataReader>, IDuckDBDataWriter, ulong> action, bool isPureFunction = true)
+    public void RegisterScalarFunction<T1, T2, TResult>(string name, Action<IReadOnlyList<IDuckDBDataReader>, IDuckDBDataWriter, ulong> action, ScalarFunctionOptions? options = null)
     {
-        RegisterScalarMethod(name, action, TypeExtensions.GetLogicalType<TResult>(), varargs: false, !isPureFunction,
-                              TypeExtensions.GetLogicalType<T1>(), 
-                              TypeExtensions.GetLogicalType<T2>());
+        RegisterScalarMethod(name, action, TypeExtensions.GetLogicalType<TResult>(), varargs: false, options,
+            TypeExtensions.GetLogicalType<T1>(), TypeExtensions.GetLogicalType<T2>());
     }
 
-    [Experimental("DuckDBNET001")]
-    public void RegisterScalarFunction<T1, T2, T3, TResult>(string name, Action<IReadOnlyList<IDuckDBDataReader>, IDuckDBDataWriter, ulong> action, bool isPureFunction = true)
+    public void RegisterScalarFunction<T1, T2, T3, TResult>(string name, Action<IReadOnlyList<IDuckDBDataReader>, IDuckDBDataWriter, ulong> action, ScalarFunctionOptions? options = null)
     {
-        RegisterScalarMethod(name, action, TypeExtensions.GetLogicalType<TResult>(), varargs: false, !isPureFunction,
-                              TypeExtensions.GetLogicalType<T1>(),
-                              TypeExtensions.GetLogicalType<T2>(),
-                              TypeExtensions.GetLogicalType<T3>());
+        RegisterScalarMethod(name, action, TypeExtensions.GetLogicalType<TResult>(), varargs: false, options,
+            TypeExtensions.GetLogicalType<T1>(), TypeExtensions.GetLogicalType<T2>(), TypeExtensions.GetLogicalType<T3>());
     }
 
-    [Experimental("DuckDBNET001")]
-    public void RegisterScalarFunction<T1, T2, T3, T4, TResult>(string name, Action<IReadOnlyList<IDuckDBDataReader>, IDuckDBDataWriter, ulong> action, bool isPureFunction = true)
+    public void RegisterScalarFunction<T1, T2, T3, T4, TResult>(string name, Action<IReadOnlyList<IDuckDBDataReader>, IDuckDBDataWriter, ulong> action, ScalarFunctionOptions? options = null)
     {
-        RegisterScalarMethod(name, action, TypeExtensions.GetLogicalType<TResult>(), varargs: false, !isPureFunction,
-                              TypeExtensions.GetLogicalType<T1>(),
-                              TypeExtensions.GetLogicalType<T2>(),
-                              TypeExtensions.GetLogicalType<T3>(),
-                              TypeExtensions.GetLogicalType<T4>());
+        RegisterScalarMethod(name, action, TypeExtensions.GetLogicalType<TResult>(), varargs: false, options,
+            TypeExtensions.GetLogicalType<T1>(), TypeExtensions.GetLogicalType<T2>(),
+            TypeExtensions.GetLogicalType<T3>(), TypeExtensions.GetLogicalType<T4>());
     }
 
-    [Experimental("DuckDBNET001")]
     private unsafe void RegisterScalarMethod(string name, Action<IReadOnlyList<IDuckDBDataReader>, IDuckDBDataWriter, ulong> action, DuckDBLogicalType returnType,
-                                             bool varargs, bool @volatile, params DuckDBLogicalType[] parameterTypes)
+                                             bool varargs, ScalarFunctionOptions? options, params DuckDBLogicalType[] parameterTypes)
     {
         var function = NativeMethods.ScalarFunction.DuckDBCreateScalarFunction();
-        using (var handle = name.ToUnmanagedString())
-        {
-            NativeMethods.ScalarFunction.DuckDBScalarFunctionSetName(function, handle);
-        }
+        NativeMethods.ScalarFunction.DuckDBScalarFunctionSetName(function, name);
 
         if (varargs)
         {
@@ -71,6 +51,7 @@ partial class DuckDBConnection
             }
 
             NativeMethods.ScalarFunction.DuckDBScalarFunctionSetVarargs(function, parameterTypes[0]);
+            parameterTypes[0].Dispose();
         }
         else
         {
@@ -81,12 +62,20 @@ partial class DuckDBConnection
             }
         }
 
-        if (@volatile)
+        // Functions with parameters default to pure; parameterless functions (e.g. random()) default to volatile
+        var defaultPure = parameterTypes.Length > 0;
+        if (!(options?.IsPureFunction ?? defaultPure))
         {
             NativeMethods.ScalarFunction.DuckDBScalarFunctionSetVolatile(function);
         }
 
+        if (options?.HandlesNulls == true)
+        {
+            NativeMethods.ScalarFunction.DuckDBScalarFunctionSetSpecialHandling(function);
+        }
+
         NativeMethods.ScalarFunction.DuckDBScalarFunctionSetReturnType(function, returnType);
+        NativeMethods.ScalarFunction.DuckDBScalarFunctionSetBind(function, &ScalarFunctionBind);
         NativeMethods.ScalarFunction.DuckDBScalarFunctionSetFunction(function, &ScalarFunctionCallback);
 
         var info = new ScalarFunctionInfo(returnType, action);
@@ -104,32 +93,78 @@ partial class DuckDBConnection
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static unsafe void ScalarFunctionBind(IntPtr info)
+    {
+        try
+        {
+            var connectionId = UdfExceptionStore.GetScalarFunctionBindConnectionId(info);
+            NativeMethods.ScalarFunction.DuckDBScalarFunctionSetBindData(info, connectionId.ToHandle(), &DestroyExtraInfo);
+        }
+        catch
+        {
+            // If we can't get the connection ID, we still allow the function to proceed
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void ScalarFunctionCallback(IntPtr info, IntPtr chunk, IntPtr outputVector)
     {
-        var dataChunk = new DuckDBDataChunk(chunk);
+        VectorDataReaderBase[] readers = [];
+        VectorDataWriterBase? writer = null;
 
-        var chunkSize = NativeMethods.DataChunks.DuckDBDataChunkGetSize(dataChunk);
-        var handle = GCHandle.FromIntPtr(NativeMethods.ScalarFunction.DuckDBScalarFunctionGetExtraInfo(info));
-
-        if (handle.Target is not ScalarFunctionInfo functionInfo)
+        try
         {
-            throw new InvalidOperationException("User defined scalar function execution failed. Function extra info is null");
+            var dataChunk = new DuckDBDataChunk(chunk);
+
+            var chunkSize = NativeMethods.DataChunks.DuckDBDataChunkGetSize(dataChunk);
+            var handle = GCHandle.FromIntPtr(NativeMethods.ScalarFunction.DuckDBScalarFunctionGetExtraInfo(info));
+
+            if (handle.Target is not ScalarFunctionInfo functionInfo)
+            {
+                throw new InvalidOperationException("User defined scalar function execution failed. Function extra info is null");
+            }
+
+            readers = new VectorDataReaderBase[NativeMethods.DataChunks.DuckDBDataChunkGetColumnCount(dataChunk)];
+
+            for (var index = 0; index < readers.Length; index++)
+            {
+                var vector = NativeMethods.DataChunks.DuckDBDataChunkGetVector(dataChunk, index);
+                using var logicalType = NativeMethods.Vectors.DuckDBVectorGetColumnType(vector);
+                readers[index] = VectorDataReaderFactory.CreateReader(vector, logicalType);
+            }
+
+            writer = VectorDataWriterFactory.CreateWriter(outputVector, functionInfo.ReturnType);
+
+            functionInfo.Action(readers, writer, chunkSize);
         }
-
-        var readers = new VectorDataReaderBase[NativeMethods.DataChunks.DuckDBDataChunkGetColumnCount(dataChunk)];
-
-        for (var index = 0; index < readers.Length; index++)
+        catch (Exception ex)
         {
-            var vector = NativeMethods.DataChunks.DuckDBDataChunkGetVector(dataChunk, index);
-            readers[index] = VectorDataReaderFactory.CreateReader(vector, NativeMethods.Vectors.DuckDBVectorGetColumnType(vector));
+            try
+            {
+                var bindDataHandle = GCHandle.FromIntPtr(NativeMethods.ScalarFunction.DuckDBScalarFunctionGetBindData(info));
+                if (bindDataHandle.Target is ulong connectionId)
+                {
+                    UdfExceptionStore.Store(connectionId, ex);
+                }
+            }
+            catch
+            {
+                // If we can't get the connection ID, we still report the error message
+            }
+
+            NativeMethods.ScalarFunction.DuckDBScalarFunctionSetError(info, ex.Message);
         }
+        finally
+        {
+            foreach (var reader in readers)
+            {
+                reader.Dispose();
+            }
 
-        var writer = VectorDataWriterFactory.CreateWriter(outputVector, functionInfo.ReturnType);
-
-        functionInfo.Action(readers, writer, chunkSize);
+            writer?.Dispose();
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void DestroyExtraInfo(IntPtr pointer) => pointer.FreeHandle();
-#endif
 }

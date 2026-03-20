@@ -1,8 +1,3 @@
-using DuckDB.NET.Native;
-using System;
-using System.Collections.Generic;
-using System.Numerics;
-
 namespace DuckDB.NET.Data.Mapping;
 
 /// <summary>
@@ -116,10 +111,8 @@ internal sealed class PropertyMapping<T, TProperty> : IPropertyMapping<T>
             BigInteger v => row.AppendValue(v),
             DuckDBDateOnly v => row.AppendValue(v),
             DuckDBTimeOnly v => row.AppendValue(v),
-#if NET6_0_OR_GREATER
             DateOnly v => row.AppendValue(v),
             TimeOnly v => row.AppendValue(v),
-#endif
 
             _ => throw new NotSupportedException($"Type {typeof(TProperty).Name} is not supported for appending")
         };

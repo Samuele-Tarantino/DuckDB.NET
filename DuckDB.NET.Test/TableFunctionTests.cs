@@ -1,19 +1,8 @@
-﻿using Dapper;
-using DuckDB.NET.Data;
-using DuckDB.NET.Native;
-using FluentAssertions;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.Linq;
-using System.Numerics;
+﻿using System.Globalization;
 using System.Threading;
-using Xunit;
 
 namespace DuckDB.NET.Test;
 
-[Experimental("DuckDBNET001")]
 public class TableFunctionTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
 {
     [Fact]
@@ -270,6 +259,28 @@ public class TableFunctionTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
     }
 
     [Fact]
+    public void RegisterTableFunctionWithNullableParameterType()
+    {
+        Connection.RegisterTableFunction<int?>("nullableParam", parameters =>
+        {
+            parameters[0].IsNull().Should().BeTrue();
+
+            return new TableFunction(new List<ColumnInfo>
+            {
+                new("foo", typeof(int)),
+            }, Enumerable.Empty<int>());
+        },
+        (item, writers, rowIndex) =>
+        {
+            writers[0].WriteValue((int)item, rowIndex);
+        });
+
+        var data = Connection.Query<int>("SELECT * FROM nullableParam(NULL::INTEGER);").ToList();
+
+        data.Should().BeEquivalentTo(Enumerable.Empty<int>());
+    }
+
+    [Fact]
     public void RegisterFunctionWithDateOnlyTimeOnlyParameters()
     {
         Connection.RegisterTableFunction<DateOnly, TimeOnly>("demo7", parameters =>
@@ -375,5 +386,40 @@ public class TableFunctionTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var data = Connection.Query<string>("SELECT * FROM demo_timetz('10:30:45+02:00'::TIMETZ);").ToList();
 
         data.Should().BeEquivalentTo("success");
+    }
+
+    [Fact]
+    public void TableFunctionBindError_PreservesInnerException()
+    {
+        var originalException = new InvalidOperationException("custom bind error");
+
+        Connection.RegisterTableFunction<string>("bind_inner_err", _ => throw originalException, (_, _, _) => { });
+
+        var act = () => Connection.Query<int>("SELECT * FROM bind_inner_err('')");
+        var ex = act.Should().Throw<DuckDBException>().Which;
+
+        ex.Message.Should().Contain("custom bind error");
+        ex.InnerException.Should().BeOfType<InvalidOperationException>();
+        ex.InnerException!.Message.Should().Be("custom bind error");
+        ex.InnerException.Should().BeSameAs(originalException);
+    }
+
+    [Fact]
+    public void TableFunctionMapError_PreservesInnerException()
+    {
+        var originalException = new NotSupportedException("custom map error");
+
+        Connection.RegisterTableFunction<string>("map_inner_err", _ =>
+        {
+            return new TableFunction([new ColumnInfo("col1", typeof(string))], new[] { "a" });
+        }, (_, _, _) => throw originalException);
+
+        var act = () => Connection.Query<int>("SELECT * FROM map_inner_err('')");
+        var ex = act.Should().Throw<DuckDBException>().Which;
+
+        ex.Message.Should().Contain("custom map error");
+        ex.InnerException.Should().BeOfType<NotSupportedException>();
+        ex.InnerException!.Message.Should().Be("custom map error");
+        ex.InnerException.Should().BeSameAs(originalException);
     }
 }

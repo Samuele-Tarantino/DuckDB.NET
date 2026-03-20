@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using DuckDB.NET.Data.Extensions;
 using DuckDB.NET.Data.Mapping;
-using DuckDB.NET.Native;
 
 namespace DuckDB.NET.Data;
 
@@ -92,9 +88,7 @@ public class DuckDBMappedAppender<T, TMap> : IDisposable where TMap : DuckDBAppe
 
     private static DuckDBType GetExpectedDuckDBType(Type type)
     {
-        var underlyingType = Nullable.GetUnderlyingType(type) ?? type;
-
-        var duckDBType = underlyingType.GetDuckDBType();
+        var duckDBType = type.UnderlyingTypeOrSelf().GetDuckDBType();
 
         return duckDBType switch
         {

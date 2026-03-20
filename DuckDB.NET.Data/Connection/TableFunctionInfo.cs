@@ -1,21 +1,21 @@
 ﻿using DuckDB.NET.Data.DataChunk.Writer;
-using DuckDB.NET.Native;
-using System;
-using System.Collections;
-using System.Collections.Generic;
 
 namespace DuckDB.NET.Data.Connection;
 
-class TableFunctionInfo(Func<IReadOnlyList<IDuckDBValueReader>, TableFunction> bind, Action<object?, VectorDataWriterBase[], ulong> mapper)
+class TableFunctionInfo(Func<IReadOnlyList<IDuckDBValueReader>, IReadOnlyDictionary<string, IDuckDBValueReader>, TableFunction> bind, Action<object?, VectorDataWriterBase[], ulong> mapper, string[] namedParameterNames)
 {
-    public Func<IReadOnlyList<IDuckDBValueReader>, TableFunction> Bind { get; private set; } = bind;
-    public Action<object?, VectorDataWriterBase[], ulong> Mapper { get; private set; } = mapper;
+    public Func<IReadOnlyList<IDuckDBValueReader>, IReadOnlyDictionary<string, IDuckDBValueReader>, TableFunction> Bind { get; } = bind;
+    public Action<object?, VectorDataWriterBase[], ulong> Mapper { get; } = mapper;
+    public string[] NamedParameterNames { get; } = namedParameterNames;
 }
 
-class TableFunctionBindData(IReadOnlyList<ColumnInfo> columns, IEnumerator dataEnumerator) : IDisposable
+record NamedParameterDefinition(string Name, Type Type);
+
+class TableFunctionBindData(IReadOnlyList<ColumnInfo> columns, IEnumerator dataEnumerator, ulong connectionId) : IDisposable
 {
     public IReadOnlyList<ColumnInfo> Columns { get; } = columns;
-    public IEnumerator DataEnumerator { get; private set; } = dataEnumerator;
+    public IEnumerator DataEnumerator { get; } = dataEnumerator;
+    public ulong ConnectionId { get; } = connectionId;
 
     public void Dispose()
     {

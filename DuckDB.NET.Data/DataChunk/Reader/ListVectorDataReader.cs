@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using DuckDB.NET.Data.Extensions;
-using DuckDB.NET.Native;
-
-namespace DuckDB.NET.Data.DataChunk.Reader;
+﻿namespace DuckDB.NET.Data.DataChunk.Reader;
 
 internal sealed class ListVectorDataReader : VectorDataReaderBase
 {
@@ -55,7 +49,7 @@ internal sealed class ListVectorDataReader : VectorDataReaderBase
     {
         var listType = returnType.GetGenericArguments()[0];
 
-        var allowNulls = listType.AllowsNullValue(out var _, out var nullableType);
+        var allowNulls = listType.AllowsNullValue(out _, out var nullableType);
 
         var list = Activator.CreateInstance(returnType) as IList
                    ?? throw new ArgumentException($"The type '{returnType.Name}' specified in parameter {nameof(returnType)} cannot be instantiated as an IList.");
@@ -81,7 +75,7 @@ internal sealed class ListVectorDataReader : VectorDataReaderBase
                 var childOffset = listOffset + i;
                 if (listDataReader.IsValid(childOffset))
                 {
-                    var item = listDataReader.GetValue<T>(childOffset);
+                    var item = listDataReader.GetValueStrict<T>(childOffset);
                     result.Add(item);
                 }
                 else
@@ -109,6 +103,15 @@ internal sealed class ListVectorDataReader : VectorDataReaderBase
             }
             return result;
         }
+    }
+
+    internal override void Reset(IntPtr vector)
+    {
+        base.Reset(vector);
+        var childVector = IsList
+            ? NativeMethods.Vectors.DuckDBListVectorGetChild(vector)
+            : NativeMethods.Vectors.DuckDBArrayVectorGetChild(vector);
+        listDataReader.Reset(childVector);
     }
 
     public override void Dispose()

@@ -1,10 +1,5 @@
-﻿using DuckDB.NET.Data.DataChunk.Reader;
-using DuckDB.NET.Native;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.Common;
+﻿using DuckDB.NET.Data.Common;
+using DuckDB.NET.Data.DataChunk.Reader;
 using System.IO;
 
 namespace DuckDB.NET.Data;
@@ -42,6 +37,13 @@ public class DuckDBDataReader : DbDataReader
 
     private bool InitNextReader()
     {
+        foreach (var reader in vectorReaders)
+        {
+            reader?.Dispose();
+        }
+
+        vectorReaders = [];
+
         while (resultEnumerator.MoveNext())
         {
             var result = resultEnumerator.Current;
@@ -67,10 +69,7 @@ public class DuckDBDataReader : DbDataReader
 
     private bool InitChunkData()
     {
-        foreach (var reader in vectorReaders)
-        {
-            reader.Dispose();
-        }
+        var canReuse = vectorReaders.Length > 0;
 
         currentChunk?.Dispose();
         currentChunk = streamingResult ? NativeMethods.StreamingResult.DuckDBStreamFetchChunk(currentResult) : NativeMethods.Types.DuckDBResultGetChunk(currentResult, currentChunkIndex);
@@ -79,7 +78,7 @@ public class DuckDBDataReader : DbDataReader
 
         currentChunkRowCount = NativeMethods.DataChunks.DuckDBDataChunkGetSize(currentChunk);
 
-        if (vectorReaders.Length != fieldCount)
+        if (!canReuse)
         {
             vectorReaders = new VectorDataReaderBase[fieldCount];
         }
@@ -88,20 +87,24 @@ public class DuckDBDataReader : DbDataReader
         {
             var vector = NativeMethods.DataChunks.DuckDBDataChunkGetVector(currentChunk, index);
 
-            using var logicalType = NativeMethods.Query.DuckDBColumnLogicalType(ref currentResult, index);
+            if (canReuse)
+            {
+                vectorReaders[index].Reset(vector);
+            }
+            else
+            {
+                using var logicalType = NativeMethods.Query.DuckDBColumnLogicalType(ref currentResult, index);
 
-            var columnName = vectorReaders[index]?.ColumnName ?? NativeMethods.Query.DuckDBColumnName(ref currentResult, index).ToManagedString(false);
-            vectorReaders[index] = VectorDataReaderFactory.CreateReader(vector, logicalType, columnName);
+                var columnName = NativeMethods.Query.DuckDBColumnName(ref currentResult, index);
+                vectorReaders[index] = VectorDataReaderFactory.CreateReader(vector, logicalType, columnName);
+            }
         }
 
         if (columnMapping.Count == 0)
         {
             for (var i = 0; i < vectorReaders.Length; i++)
             {
-                if (!columnMapping.ContainsKey(vectorReaders[i].ColumnName))
-                {
-                    columnMapping.Add(vectorReaders[i].ColumnName, i);
-                }
+                columnMapping.TryAdd(vectorReaders[i].ColumnName, i);
             }
         }
 
@@ -212,7 +215,7 @@ public class DuckDBDataReader : DbDataReader
     {
         CheckRowRead();
 
-        return vectorReaders[ordinal].GetValue<T>(rowsReadFromCurrentChunk - 1);
+        return vectorReaders[ordinal].GetValueStrict<T>(rowsReadFromCurrentChunk - 1);
     }
 
     public override object GetValue(int ordinal)

@@ -1,25 +1,32 @@
-﻿using System;
-using System.Runtime.InteropServices;
-
-namespace DuckDB.NET.Native;
+﻿namespace DuckDB.NET.Native;
 
 public partial class NativeMethods
 {
-    public static class Configuration
+    public static partial class Configuration
     {
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_config")]
-        public static extern DuckDBState DuckDBCreateConfig(out DuckDBConfig config);
+        // Maybe [SuppressGCTransition]: new DBConfig + SetOptionByName — small allocation + map insertion
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_create_config")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial DuckDBState DuckDBCreateConfig(out DuckDBConfig config);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_config_count")]
-        public static extern int DuckDBConfigCount();
+        [SuppressGCTransition]
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_config_count")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial int DuckDBConfigCount();
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_get_config_flag")]
-        public static extern DuckDBState DuckDBGetConfigFlag(int index, out IntPtr name, out IntPtr description);
+        [SuppressGCTransition]
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_get_config_flag")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial DuckDBState DuckDBGetConfigFlag(int index, [MarshalUsing(typeof(DuckDBOwnedStringMarshaller))] out string name, [MarshalUsing(typeof(DuckDBOwnedStringMarshaller))] out string description);
 
-        [DllImport(DuckDbLibrary, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_set_config")]
-        public static extern DuckDBState DuckDBSetConfig(DuckDBConfig config, [MarshalAs(UnmanagedType.LPStr)] string name, [MarshalAs(UnmanagedType.LPStr)] string option);
+        // Maybe [SuppressGCTransition]: creates Value from string (small allocation) + map insertion
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_set_config", StringMarshalling = StringMarshalling.Utf8)]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial DuckDBState DuckDBSetConfig(DuckDBConfig config, string name, string option);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_destroy_config")]
-        public static extern void DuckDBDestroyConfig(ref IntPtr config);
+        // Maybe [SuppressGCTransition]: delete DBConfig — small object deallocation
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_destroy_config")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial void DuckDBDestroyConfig(ref IntPtr config);
     }
 }

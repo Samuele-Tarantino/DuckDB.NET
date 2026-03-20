@@ -1,8 +1,5 @@
-using DuckDB.NET.Native;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace DuckDB.NET.Data.Extensions;
 
@@ -35,10 +32,8 @@ internal static class TypeExtensions
         { typeof(Guid), DuckDBType.Uuid},
         { typeof(DateTime), DuckDBType.Timestamp},
         { typeof(TimeSpan), DuckDBType.Interval},
-#if NET6_0_OR_GREATER
         { typeof(DateOnly), DuckDBType.Date},
         { typeof(TimeOnly), DuckDBType.Time},
-#endif
         { typeof(DateTimeOffset), DuckDBType.TimestampTz},
         { typeof(BigInteger), DuckDBType.HugeInt},
         { typeof(string), DuckDBType.Varchar},
@@ -46,16 +41,11 @@ internal static class TypeExtensions
         { typeof(object), DuckDBType.Any},
     };
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsNull([NotNullWhen(false)] this object? value) => value is null or DBNull;
 
-    public static (bool isNullableValueType, Type type) IsNullableValueType<T>()
-    {
-        var targetType = typeof(T);
-
-        var isNullableValueType = default(T) is null && targetType.IsValueType;
-
-        return (isNullableValueType, targetType);
-    }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Type UnderlyingTypeOrSelf(this Type type) => Nullable.GetUnderlyingType(type) ?? type;
 
     public static bool IsFloatingNumericType<T>()
     {
@@ -82,10 +72,12 @@ internal static class TypeExtensions
         return isNullable;
     }
 
-    public static DuckDBLogicalType GetLogicalType<T>() => GetLogicalType(typeof(T));
+    public static DuckDBLogicalType GetLogicalType<T>() => typeof(T).GetLogicalType();
 
     public static DuckDBLogicalType GetLogicalType(this Type type)
     {
+        type = type.UnderlyingTypeOrSelf();
+
         if (type == typeof(decimal))
         {
             return NativeMethods.LogicalType.DuckDBCreateDecimalType(38, 18);

@@ -1,41 +1,57 @@
-﻿using System;
-using System.Runtime.InteropServices;
-
 namespace DuckDB.NET.Native;
 
 public partial class NativeMethods
 {
-    //https://duckdb.org/docs/api/c/api#openconnect
-    public static class Startup
+    //https://duckdb.org/docs/stable/clients/c/connect
+    public static partial class Startup
     {
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_open")]
-        public static extern DuckDBState DuckDBOpen(SafeUnmanagedMemoryHandle path, out DuckDBDatabase database);
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_open", StringMarshalling = StringMarshalling.Utf8)]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial DuckDBState DuckDBOpen(string? path, out DuckDBDatabase database);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_open")]
-        public static extern DuckDBState DuckDBOpen(string? path, out DuckDBDatabase database);
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_open_ext", StringMarshalling = StringMarshalling.Utf8)]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial DuckDBState DuckDBOpen(string? path, out DuckDBDatabase database, DuckDBConfig config, [MarshalUsing(typeof(DuckDBCallerOwnedStringMarshaller))] out string error);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_open_ext")]
-        public static extern DuckDBState DuckDBOpen(SafeUnmanagedMemoryHandle path, out DuckDBDatabase database, DuckDBConfig config, out IntPtr error);
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_close")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial void DuckDBClose(ref IntPtr database);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_open_ext")]
-        public static extern DuckDBState DuckDBOpen(string? path, out DuckDBDatabase database, DuckDBConfig config, out IntPtr error);
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_connect")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial DuckDBState DuckDBConnect(DuckDBDatabase database, out DuckDBNativeConnection connection);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_close")]
-        public static extern void DuckDBClose(ref IntPtr database);
+        // Maybe [SuppressGCTransition]: likely sets an atomic flag, but may signal across threads
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_interrupt")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial void DuckDBInterrupt(DuckDBNativeConnection connection);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_connect")]
-        public static extern DuckDBState DuckDBConnect(DuckDBDatabase database, out DuckDBNativeConnection connection);
+        // Maybe [SuppressGCTransition]: reads 3 atomic fields from shared context, no locks but uses concurrency primitives
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_query_progress")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial DuckDBQueryProgress DuckDBQueryProgress(DuckDBNativeConnection connection);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_disconnect")]
-        public static extern void DuckDBDisconnect(ref IntPtr connection);
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_disconnect")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial void DuckDBDisconnect(ref IntPtr connection);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_interrupt")]
-        public static extern void DuckDBInterrupt(DuckDBNativeConnection connection);
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_connection_get_client_context")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial void DuckDBConnectionGetClientContext(DuckDBNativeConnection connection, out DuckDBClientContext outContext);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_query_progress")]
-        public static extern DuckDBQueryProgress DuckDBQueryProgress(DuckDBNativeConnection connection);
+        [SuppressGCTransition]
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_client_context_get_connection_id")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial ulong DuckDBClientContextGetConnectionId(DuckDBClientContext context);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_library_version")]
-        public static extern IntPtr DuckDBLibraryVersion();
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_destroy_client_context")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial void DuckDBDestroyClientContext(ref IntPtr context);
+
+        [SuppressGCTransition]
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_library_version")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        [return: MarshalUsing(typeof(DuckDBOwnedStringMarshaller))]
+        public static partial string DuckDBLibraryVersion();
     }
 }

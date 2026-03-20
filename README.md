@@ -100,7 +100,7 @@ Current version:
 Set explicit version:
 
 ```powershell
-.\scripts\irion-package.ps1 -Command set -Version 1.4.4.1
+.\scripts\irion-package.ps1 -Command set -Version 1.4.4.2
 ```
 
 Bump version in `build/irion.version`:
@@ -175,6 +175,26 @@ Quick checklist before publishing:
 2. `build/irion.version` contains the final release version.
 3. Both `dotnet pack` commands completed successfully.
 4. Both packages were pushed to the target feed.
+
+### Merge a Specific Upstream Tag
+
+```powershell
+git checkout v1.4.4
+git fetch upstream --tags
+git merge refs/tags/1.4.4
+git push origin v1.4.4
+```
+
+```powershell
+git checkout <target-branch>
+git fetch upstream --tags
+git merge refs/tags/<tag-version>
+git push origin <target-branch>
+```
+
+```powershell
+git log --oneline HEAD..refs/tags/<tag-version>
+```
 
 
 ### MotherDuck

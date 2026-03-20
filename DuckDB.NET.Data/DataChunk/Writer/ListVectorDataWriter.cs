@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Numerics;
-using DuckDB.NET.Data.Common;
-using DuckDB.NET.Native;
+﻿using DuckDB.NET.Data.Common;
 
 namespace DuckDB.NET.Data.DataChunk.Writer;
 
@@ -75,12 +70,10 @@ internal sealed unsafe class ListVectorDataWriter : VectorDataWriterBase
             IEnumerable<DuckDBDateOnly?> items => WriteItems(items),
             IEnumerable<DuckDBTimeOnly> items => WriteItems(items),
             IEnumerable<DuckDBTimeOnly?> items => WriteItems(items),
-#if NET6_0_OR_GREATER
             IEnumerable<DateOnly> items => WriteItems(items),
             IEnumerable<DateOnly?> items => WriteItems(items),
             IEnumerable<TimeOnly> items => WriteItems(items),
             IEnumerable<TimeOnly?> items => WriteItems(items),
-#endif
             IEnumerable<DateTimeOffset> items => WriteItems(items),
             IEnumerable<DateTimeOffset?> items => WriteItems(items),
             IEnumerable<object> items => WriteItems(items),

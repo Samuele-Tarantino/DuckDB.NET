@@ -1,6 +1,4 @@
-﻿using System;
-using System.Numerics;
-using System.Runtime.InteropServices;
+﻿using System.Numerics;
 
 namespace DuckDB.NET.Native;
 
@@ -42,7 +40,7 @@ public readonly struct DuckDBHugeInt
 
     public BigInteger ToBigInteger()
     {
-        return Upper * BigInteger.Pow(2, 64) + Lower;
+        return Upper * Base + Lower;
     }
 }
 
@@ -78,6 +76,6 @@ public readonly struct DuckDBUHugeInt
 
     public BigInteger ToBigInteger()
     {
-        return Upper * BigInteger.Pow(2, 64) + Lower;
+        return Upper * Base + Lower;
     }
 }

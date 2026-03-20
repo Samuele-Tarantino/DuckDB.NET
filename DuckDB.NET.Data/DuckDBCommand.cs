@@ -1,8 +1,4 @@
-﻿using DuckDB.NET.Native;
-using System;
-using System.ComponentModel;
-using System.Data;
-using System.Data.Common;
+﻿using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
@@ -32,21 +28,17 @@ public class DuckDBCommand : DbCommand
     /// </remarks>
     public bool UseStreamingMode { get; set; } = false;
 
-    private string commandText = string.Empty;
-
-#if NET6_0_OR_GREATER
     [AllowNull]
-#endif
     [DefaultValue("")]
     public override string CommandText
     {
-        get => commandText;
+        get;
         set
         {
             // TODO: We shouldn't be able to change the CommandText when the command is in execution (requires CommandState implementation)
-            commandText = value ?? string.Empty;
+            field = value ?? string.Empty;
         }
-    }
+    } = string.Empty;
 
     protected override DbConnection? DbConnection
     {
@@ -68,13 +60,7 @@ public class DuckDBCommand : DbCommand
         Connection = connection;
     }
 
-    public override void Cancel()
-    {
-        if (connection != null)
-        {
-            connection.NativeConnection.Interrupt();
-        }
-    }
+    public override void Cancel() => connection?.NativeConnection.Interrupt();
 
     public override int ExecuteNonQuery()
     {

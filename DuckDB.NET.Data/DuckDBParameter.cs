@@ -1,7 +1,5 @@
 using DuckDB.NET.Data.PreparedStatement;
 using System.ComponentModel;
-using System.Data;
-using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 
 namespace DuckDB.NET.Data;
@@ -14,9 +12,7 @@ public class DuckDBParameter : DbParameter
 
     public override DbType DbType { get; set; }
 
-#if NET6_0_OR_GREATER
     [AllowNull]
-#endif
     [DefaultValue("")]
     public override string ParameterName { get; set; }
 
@@ -36,9 +32,7 @@ public class DuckDBParameter : DbParameter
     public override ParameterDirection Direction { get; set; }
     public override bool IsNullable { get; set; }
 
-#if NET6_0_OR_GREATER
     [AllowNull]
-#endif
     [DefaultValue("")]
     public override string SourceColumn { get; set; }
     public override bool SourceColumnNullMapping { get; set; }

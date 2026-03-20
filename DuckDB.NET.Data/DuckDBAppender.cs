@@ -1,8 +1,5 @@
 ﻿using DuckDB.NET.Data.Common;
 using DuckDB.NET.Data.DataChunk.Writer;
-using DuckDB.NET.Native;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
@@ -63,6 +60,23 @@ public class DuckDBAppender : IDisposable
 
         rowCount++;
         return new DuckDBAppenderRow(qualifiedTableName, vectorWriters, rowCount - 1, dataChunk, nativeAppender);
+    }
+
+    public void Clear()
+    {
+        if (closed)
+        {
+            throw new InvalidOperationException("Appender is already closed");
+        }
+        
+        var state = NativeMethods.Appender.DuckDBAppenderClear(nativeAppender);
+        if (!state.IsSuccess())
+        {
+            ThrowLastError(nativeAppender);
+        }
+
+        rowCount = 0;
+        NativeMethods.DataChunks.DuckDBDataChunkReset(dataChunk);
     }
 
     public void Close()
@@ -133,7 +147,7 @@ public class DuckDBAppender : IDisposable
     [StackTraceHidden]
     internal static void ThrowLastError(Native.DuckDBAppender appender)
     {
-        var errorMessage = NativeMethods.Appender.DuckDBAppenderError(appender).ToManagedString(false);
+        var errorMessage = NativeMethods.Appender.DuckDBAppenderError(appender);
 
         throw new DuckDBException(errorMessage);
     }

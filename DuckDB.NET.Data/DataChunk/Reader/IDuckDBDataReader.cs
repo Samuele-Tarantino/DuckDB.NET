@@ -1,12 +1,5 @@
-﻿using DuckDB.NET.Native;
-using System;
-using System.Diagnostics.CodeAnalysis;
+﻿namespace DuckDB.NET.Data.DataChunk.Reader;
 
-#if NET8_0_OR_GREATER
-
-namespace DuckDB.NET.Data.DataChunk.Reader;
-
-[Experimental("DuckDBNET001")]
 public interface IDuckDBDataReader
 {
     Type ClrType { get; }
@@ -16,5 +9,4 @@ public interface IDuckDBDataReader
 
     T GetValue<T>(ulong offset);
     object GetValue(ulong offset);
-} 
-#endif
+}

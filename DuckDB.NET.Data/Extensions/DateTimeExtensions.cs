@@ -1,22 +1,10 @@
-﻿using System;
-using DuckDB.NET.Native;
-
-namespace DuckDB.NET.Data.Extensions;
+﻿namespace DuckDB.NET.Data.Extensions;
 
 //https://stackoverflow.com/a/5359304/239438
 internal static class DateTimeExtensions
 {
     public const int TicksPerMicrosecond = 10;
     public const int NanosecondsPerTick = 100;
-
-    public static int Nanoseconds(this DateTime self)
-    {
-#if NET8_0_OR_GREATER
-        return self.Nanosecond;
-#else
-        return (int)(self.Ticks % TimeSpan.TicksPerMillisecond % TicksPerMicrosecond) * NanosecondsPerTick;
-#endif
-    }
 
     public static DuckDBTimeTzStruct ToTimeTzStruct(this DateTimeOffset value)
     {
@@ -41,7 +29,7 @@ internal static class DateTimeExtensions
         {
             timestamp.Micros *= 1000;
 
-            timestamp.Micros += value.Nanoseconds();
+            timestamp.Micros += value.Nanosecond;
         }
 
         if (duckDBType == DuckDBType.TimestampMs)

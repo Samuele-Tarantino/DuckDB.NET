@@ -1,9 +1,4 @@
-﻿using Microsoft.Win32.SafeHandles;
-using System;
-using System.Globalization;
-using System.Runtime.CompilerServices;
-
-namespace DuckDB.NET.Native;
+﻿namespace DuckDB.NET.Native;
 
 public class DuckDBDatabase() : SafeHandleZeroOrMinusOneIsInvalid(true)
 {
@@ -150,13 +145,8 @@ public class DuckDBValue() : SafeHandleZeroOrMinusOneIsInvalid(true), IDuckDBVal
 
             DuckDBType.Varchar => Cast(NativeMethods.Value.DuckDBGetVarchar(this)),
 
-#if NET6_0_OR_GREATER
             DuckDBType.Date => Cast((DateOnly)DuckDBDateOnly.FromDuckDBDate(NativeMethods.Value.DuckDBGetDate(this))),
             DuckDBType.Time => Cast((TimeOnly)NativeMethods.DateTimeHelpers.DuckDBFromTime(NativeMethods.Value.DuckDBGetTime(this))),
-#else
-            DuckDBType.Date => Cast(DuckDBDateOnly.FromDuckDBDate(NativeMethods.Value.DuckDBGetDate(this)).ToDateTime()),
-            DuckDBType.Time => Cast(NativeMethods.DateTimeHelpers.DuckDBFromTime(NativeMethods.Value.DuckDBGetTime(this)).ToDateTime()),
-#endif
             DuckDBType.TimeTz => Cast(GetTimeTzValue()),
             DuckDBType.Interval => Cast((TimeSpan)NativeMethods.Value.DuckDBGetInterval(this)),
             DuckDBType.Timestamp => Cast(GetTimestampValue(NativeMethods.Value.DuckDBGetTimestamp(this),DuckDBType.Timestamp)),
@@ -204,4 +194,15 @@ public class DuckDBValue() : SafeHandleZeroOrMinusOneIsInvalid(true), IDuckDBVal
         var timeTz = NativeMethods.DateTimeHelpers.DuckDBFromTimeTz(timeTzStruct);
         return new DateTimeOffset(timeTz.Time.ToDateTime(), TimeSpan.FromSeconds(timeTz.Offset));
     }
+}
+
+public class DuckDBClientContext() : SafeHandleZeroOrMinusOneIsInvalid(true)
+{
+    protected override bool ReleaseHandle()
+    {
+        NativeMethods.Startup.DuckDBDestroyClientContext(ref handle);
+        return true;
+    }
+
+    public ulong ConnectionId => NativeMethods.Startup.DuckDBClientContextGetConnectionId(this);
 }

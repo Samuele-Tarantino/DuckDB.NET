@@ -1,9 +1,3 @@
-using DuckDB.NET.Data;
-using DuckDB.NET.Native;
-using FluentAssertions;
-using System;
-using Xunit;
-
 namespace DuckDB.NET.Test;
 
 public class DuckDBInfinityTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
@@ -41,7 +35,6 @@ public class DuckDBInfinityTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var actNullablePositive = () => reader.GetFieldValue<DateTime?>(0);
         actNullablePositive.Should().Throw<InvalidOperationException>().WithMessage("*infinite*DuckDBDateOnly*");
 
-#if NET6_0_OR_GREATER
         // Reading as DateOnly throws
         var actDateOnlyPositive = () => reader.GetFieldValue<DateOnly>(0);
         actDateOnlyPositive.Should().Throw<InvalidOperationException>().WithMessage("*infinite*DuckDBDateOnly*");
@@ -51,7 +44,6 @@ public class DuckDBInfinityTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         // Reading as nullable DateOnly throws
         var actNullableDateOnly = () => reader.GetFieldValue<DateOnly?>(0);
         actNullableDateOnly.Should().Throw<InvalidOperationException>().WithMessage("*infinite*DuckDBDateOnly*");
-#endif
     }
 
     private static void AssertInfinityTimestampValues(DuckDBDataReader reader, DuckDBType duckDBType)

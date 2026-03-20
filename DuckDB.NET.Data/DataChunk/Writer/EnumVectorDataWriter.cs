@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using DuckDB.NET.Native;
-
-namespace DuckDB.NET.Data.DataChunk.Writer;
+﻿namespace DuckDB.NET.Data.DataChunk.Writer;
 
 internal sealed unsafe class EnumVectorDataWriter(IntPtr vector, void* vectorData, DuckDBLogicalType logicalType, DuckDBType columnType) : VectorDataWriterBase(vector, vectorData, columnType)
 {
@@ -18,7 +14,7 @@ internal sealed unsafe class EnumVectorDataWriter(IntPtr vector, void* vectorDat
         {
             for (uint index = 0; index < enumDictionarySize; index++)
             {
-                var enumValueName = NativeMethods.LogicalType.DuckDBEnumDictionaryValue(logicalType, index).ToManagedString();
+                var enumValueName = NativeMethods.LogicalType.DuckDBEnumDictionaryValue(logicalType, index);
                 enumValues.Add(enumValueName, index);
             }
         }

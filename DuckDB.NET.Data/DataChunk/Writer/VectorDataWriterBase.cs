@@ -1,16 +1,8 @@
-﻿using System;
-using System.Collections;
-using System.Numerics;
-using DuckDB.NET.Native;
+using System.Runtime.CompilerServices;
 
 namespace DuckDB.NET.Data.DataChunk.Writer;
 
-internal unsafe class VectorDataWriterBase(IntPtr vector, void* vectorData, DuckDBType columnType) : IDisposable
-#if NET8_0_OR_GREATER
-#pragma warning disable DuckDBNET001
-    , IDuckDBDataWriter
-#pragma warning restore DuckDBNET001
-#endif
+internal unsafe class VectorDataWriterBase(IntPtr vector, void* vectorData, DuckDBType columnType) : IDisposable, IDuckDBDataWriter
 {
     private ulong* validity;
 
@@ -64,10 +56,8 @@ internal unsafe class VectorDataWriterBase(IntPtr vector, void* vectorData, Duck
             TimeSpan val => AppendTimeSpan(val, rowIndex),
             DuckDBDateOnly val => AppendDateOnly(val, rowIndex),
             DuckDBTimeOnly val => AppendTimeOnly(val, rowIndex),
-#if NET6_0_OR_GREATER
             DateOnly val => AppendDateOnly(val, rowIndex),
             TimeOnly val => AppendTimeOnly(val, rowIndex),
-#endif
             DateTimeOffset val => AppendDateTimeOffset(val, rowIndex),
             ICollection val => AppendCollection(val, rowIndex),
             _ => ThrowException<T>()
@@ -88,11 +78,9 @@ internal unsafe class VectorDataWriterBase(IntPtr vector, void* vectorData, Duck
 
     internal virtual bool AppendDateTime(DateTime value, ulong rowIndex) => ThrowException<DateTime>();
 
-#if NET6_0_OR_GREATER
     internal virtual bool AppendDateOnly(DateOnly value, ulong rowIndex) => ThrowException<DateOnly>();
 
     internal virtual bool AppendTimeOnly(TimeOnly value, ulong rowIndex) => ThrowException<TimeOnly>();
-#endif
 
     internal virtual bool AppendDateOnly(DuckDBDateOnly value, ulong rowIndex) => ThrowException<DuckDBDateOnly>();
 
@@ -113,6 +101,7 @@ internal unsafe class VectorDataWriterBase(IntPtr vector, void* vectorData, Duck
         throw new InvalidOperationException($"Cannot write {typeof(T).Name} to {columnType} column");
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool AppendValueInternal<T>(T value, ulong rowIndex) where T : unmanaged
     {
         ((T*)vectorData)[rowIndex] = value;

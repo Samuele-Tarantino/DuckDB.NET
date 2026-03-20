@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using DuckDB.NET.Data.Extensions;
-using DuckDB.NET.Native;
-
-namespace DuckDB.NET.Data.DataChunk.Reader;
+﻿namespace DuckDB.NET.Data.DataChunk.Reader;
 
 internal sealed class MapVectorDataReader : VectorDataReaderBase
 {
@@ -50,7 +44,7 @@ internal sealed class MapVectorDataReader : VectorDataReaderBase
 
         var arguments = targetType.GetGenericArguments();
 
-        var allowsNullValues = arguments.Length == 2 && arguments[1].AllowsNullValue(out var _, out var _);
+        var allowsNullValues = arguments.Length == 2 && arguments[1].AllowsNullValue(out _, out _);
 
         var listData = (DuckDBListEntry*)DataPointer + offset;
 
@@ -72,5 +66,22 @@ internal sealed class MapVectorDataReader : VectorDataReaderBase
         }
 
         return instance;
+    }
+
+    internal override void Reset(IntPtr vector)
+    {
+        base.Reset(vector);
+        var childVector = NativeMethods.Vectors.DuckDBListVectorGetChild(vector);
+        var keyVector = NativeMethods.Vectors.DuckDBStructVectorGetChild(childVector, 0);
+        var valueVector = NativeMethods.Vectors.DuckDBStructVectorGetChild(childVector, 1);
+        keyReader.Reset(keyVector);
+        valueReader.Reset(valueVector);
+    }
+
+    public override void Dispose()
+    {
+        keyReader.Dispose();
+        valueReader.Dispose();
+        base.Dispose();
     }
 }

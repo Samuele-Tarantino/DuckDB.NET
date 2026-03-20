@@ -1,32 +1,43 @@
-﻿using System;
-using System.Runtime.InteropServices;
-
-namespace DuckDB.NET.Native;
+﻿namespace DuckDB.NET.Native;
 
 public partial class NativeMethods
 {
     //https://duckdb.org/docs/api/c/api#data-chunk-interface
-    public static class DataChunks
+    public static partial class DataChunks
     {
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_create_data_chunk")]
-        public static extern DuckDBDataChunk DuckDBCreateDataChunk(IntPtr[] types, ulong count);
+        // Maybe [SuppressGCTransition]: new DataChunk + Initialize — bounded allocation per column count
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_create_data_chunk")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial DuckDBDataChunk DuckDBCreateDataChunk(IntPtr[] types, ulong count);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_destroy_data_chunk")]
-        public static extern void DuckDBDestroyDataChunk(ref IntPtr chunk);
+        // Maybe [SuppressGCTransition]: delete DataChunk — bounded deallocation
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_destroy_data_chunk")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial void DuckDBDestroyDataChunk(ref IntPtr chunk);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_data_chunk_reset")]
-        public static extern void DuckDBDataChunkReset(DuckDBDataChunk chunk);
+        // Maybe [SuppressGCTransition]: reinitializes vectors, may deallocate string heaps
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_data_chunk_reset")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial void DuckDBDataChunkReset(DuckDBDataChunk chunk);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_data_chunk_get_column_count")]
-        public static extern long DuckDBDataChunkGetColumnCount(DuckDBDataChunk chunk);
+        [SuppressGCTransition]
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_data_chunk_get_column_count")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial long DuckDBDataChunkGetColumnCount(DuckDBDataChunk chunk);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_data_chunk_get_vector")]
-        public static extern IntPtr DuckDBDataChunkGetVector(DuckDBDataChunk chunk, long columnIndex);
+        [SuppressGCTransition]
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_data_chunk_get_vector")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial IntPtr DuckDBDataChunkGetVector(DuckDBDataChunk chunk, long columnIndex);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_data_chunk_get_size")]
-        public static extern ulong DuckDBDataChunkGetSize(DuckDBDataChunk chunk);
+        [SuppressGCTransition]
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_data_chunk_get_size")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial ulong DuckDBDataChunkGetSize(DuckDBDataChunk chunk);
 
-        [DllImport(DuckDbLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "duckdb_data_chunk_set_size")]
-        public static extern long DuckDBDataChunkSetSize(DuckDBDataChunk chunk, ulong size);
+        [SuppressGCTransition]
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_data_chunk_set_size")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial long DuckDBDataChunkSetSize(DuckDBDataChunk chunk, ulong size);
     }
 }

@@ -1,17 +1,5 @@
-﻿using Dapper;
-using DuckDB.NET.Data;
-using FluentAssertions;
+﻿using System.Globalization;
 using FluentAssertions.Common;
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Numerics;
-using Bogus;
-using Xunit;
-using System.Text;
 
 namespace DuckDB.NET.Test;
 
@@ -194,6 +182,98 @@ public class DuckDBManagedAppenderTests(DuckDBDatabaseFixture db) : DuckDBTestBa
     }
 
     [Fact]
+    public void DecimalsTruncateExcessScale()
+    {
+        // Writing a .NET decimal with more fractional digits than the column's scale
+        // should truncate the extra digits. Tests all internal storage types.
+        TruncationTests("DECIMAL(4, 1)", // SmallInt internal type (width ≤ 4)
+        [
+            (1.19m, 1.1m),
+            (-3.75m, -3.7m),
+            (0.999m, 0.9m),
+        ]);
+
+        TruncationTests("DECIMAL(9, 2)", // Integer internal type (width 5-9)
+        [
+            (1.123m, 1.12m),
+            (-999.987m, -999.98m),
+            (0.005m, 0.00m),
+        ]);
+
+        TruncationTests("DECIMAL(18, 3)", // BigInt internal type (width 10-18)
+        [
+            (1.12345m, 1.123m),
+            (-99999.99999m, -99999.999m),
+            (0.0001m, 0.000m),
+        ]);
+
+        TruncationTests("DECIMAL(38, 2)", // HugeInt internal type (width > 18)
+        [
+            (1.123m, 1.12m),
+            (-1.987m, -1.98m),
+            (0.999m, 0.99m),
+            (0.005m, 0.00m),
+            (123456789012345678.009m, 123456789012345678.00m),
+        ]);
+
+        void TruncationTests(string columnType, (decimal input, decimal expected)[] testCases)
+        {
+            Command.CommandText = $"CREATE TABLE truncTest(value {columnType})";
+            Command.ExecuteNonQuery();
+
+            using (var appender = Connection.CreateAppender("truncTest"))
+            {
+                foreach (var (input, _) in testCases)
+                {
+                    appender.CreateRow().AppendValue(input).EndRow();
+                }
+            }
+
+            Command.CommandText = "SELECT value FROM truncTest ORDER BY rowid";
+            using (var reader = Command.ExecuteReader())
+            {
+                foreach (var (input, expected) in testCases)
+                {
+                    reader.Read().Should().BeTrue();
+                    reader.GetDecimal(0).Should().Be(expected, $"for input {input} in {columnType}");
+                }
+            }
+
+            Command.CommandText = "DROP TABLE truncTest";
+            Command.ExecuteNonQuery();
+        }
+    }
+
+    [Fact]
+    public void HighScaleDecimals()
+    {
+        // Scale 30 exceeds .NET decimal's max scale (28), exercising the BigInteger rescaling
+        // path in DecimalVectorDataWriter. Before the fix, this would crash with IndexOutOfRangeException.
+        Command.CommandText = "CREATE TABLE managedAppenderHighScaleDecimals(value DECIMAL(38, 30))";
+        Command.ExecuteNonQuery();
+
+        decimal[] values = [1.5m, -1.5m, 0m, 123.456m, 0.000000001m];
+
+        using (var appender = Connection.CreateAppender("managedAppenderHighScaleDecimals"))
+        {
+            foreach (var value in values)
+            {
+                appender.CreateRow().AppendValue(value).EndRow();
+            }
+        }
+
+        Command.CommandText = "SELECT value FROM managedAppenderHighScaleDecimals ORDER BY rowid";
+        using (var reader = Command.ExecuteReader())
+        {
+            foreach (var expected in values)
+            {
+                reader.Read().Should().BeTrue();
+                reader.GetDecimal(0).Should().Be(expected);
+            }
+        }
+    }
+
+    [Fact]
     public void GuidValues()
     {
         Command.CommandText = "CREATE TABLE managedAppenderGuids(a UUID);";
@@ -221,7 +301,7 @@ public class DuckDBManagedAppenderTests(DuckDBDatabaseFixture db) : DuckDBTestBa
         Command.ExecuteNonQuery();
 
         //DuckDB's precision for Interval is MicroSeconds so results will be rounded down to the nearest 10th.
-        var timeSpans = GetRandomList<TimeSpan>(faker =>
+        var timeSpans = GetRandomList(faker =>
         {
             var timespan = faker.Date.Timespan();
 
@@ -558,7 +638,7 @@ public class DuckDBManagedAppenderTests(DuckDBDatabaseFixture db) : DuckDBTestBa
 
         var specialTableName = "SPÉçÏÃL - TÁBLÈ_";
         var specialColumnName = "SPÉçÏÃL @ CÓlümn";
-        var specialStringValues = new string[] { "Válüe 1", "Öthér V@L", "Lãst" };
+        var specialStringValues = new[] { "Válüe 1", "Öthér V@L", "Lãst" };
 
         Command.CommandText = $"CREATE TABLE {GetQualifiedObjectName(schemaName, specialTableName)} ({GetQualifiedObjectName(specialColumnName)} TEXT)";
         Command.ExecuteNonQuery();
@@ -633,6 +713,54 @@ public class DuckDBManagedAppenderTests(DuckDBDatabaseFixture db) : DuckDBTestBa
 
         reader.GetInt32(0).Should().Be(4);
         reader.GetInt32(2).Should().Be(30);
+    }
+
+    [Fact]
+    public void ClearAppender()
+    {
+        Command.CommandText = "CREATE OR REPLACE TABLE tbl_empty (i INT DEFAULT 4, j INT, k INT DEFAULT 30)";
+        Command.ExecuteNonQuery();
+
+        using (var appender = Connection.CreateAppender("tbl_empty"))
+        {
+            for (int i = 0; i < 10_000; i++)
+            {
+                appender.CreateRow().AppendValue((int?)2).AppendValue(2).AppendDefault().EndRow();
+            }
+
+            appender.Clear();
+        }
+
+        Command.CommandText = "Select count(*) from tbl_empty";
+        var count = Command.ExecuteScalar();
+        count.Should().Be(0);
+    }
+
+
+    [Fact]
+    public void ClearAppenderAddMoreData()
+    {
+        Command.CommandText = "CREATE OR REPLACE TABLE tbl_empty (i INT DEFAULT 4, j INT, k INT DEFAULT 30)";
+        Command.ExecuteNonQuery();
+
+        using (var appender = Connection.CreateAppender("tbl_empty"))
+        {
+            for (int i = 0; i < 10_000; i++)
+            {
+                appender.CreateRow().AppendValue((int?)2).AppendValue(2).AppendDefault().EndRow();
+            }
+
+            appender.Clear();
+
+            for (int i = 0; i < 5_000; i++)
+            {
+                appender.CreateRow().AppendValue((int?)3).AppendValue(3).AppendDefault().EndRow();
+            }
+        }
+
+        Command.CommandText = "Select count(*) from tbl_empty";
+        var count = Command.ExecuteScalar();
+        count.Should().Be(5000);
     }
 
     private static string GetCreateEnumTypeSql(string enumName, string enumValueNamePrefix, int count)

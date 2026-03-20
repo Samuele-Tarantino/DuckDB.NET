@@ -1,8 +1,4 @@
-﻿using System;
-using DuckDB.NET.Data.Extensions;
-using DuckDB.NET.Native;
-
-namespace DuckDB.NET.Data.DataChunk.Writer;
+﻿namespace DuckDB.NET.Data.DataChunk.Writer;
 
 internal sealed unsafe class DateTimeVectorDataWriter(IntPtr vector, void* vectorData, DuckDBType columnType) : VectorDataWriterBase(vector, vectorData, columnType)
 {
@@ -37,11 +33,9 @@ internal sealed unsafe class DateTimeVectorDataWriter(IntPtr vector, void* vecto
         return base.AppendDateTimeOffset(value, rowIndex);
     }
 
-#if NET6_0_OR_GREATER
     internal override bool AppendDateOnly(DateOnly value, ulong rowIndex) => AppendValueInternal(((DuckDBDateOnly)value).ToDuckDBDate(), rowIndex);
 
     internal override bool AppendTimeOnly(TimeOnly value, ulong rowIndex) => AppendValueInternal(NativeMethods.DateTimeHelpers.DuckDBToTime(value), rowIndex);
-#endif
 
     internal override bool AppendDateOnly(DuckDBDateOnly value, ulong rowIndex) => AppendValueInternal(value.ToDuckDBDate(), rowIndex);
 
