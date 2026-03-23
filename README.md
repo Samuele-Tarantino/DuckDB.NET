@@ -136,16 +136,18 @@ You can override package IDs if needed:
 .\scripts\irion-package.ps1 -Command pack
 ```
 
-The script reads `build/irion.version`, sets `DUCKDB_VERSION_BUILD` internally, and uses that same value for:
+The script reads `build/irion.version`, sets `DUCKDB_VERSION_BUILD` internally, and uses that value for:
 
 - `/p:Version`
 - `/p:FileVersion`
-- `/p:PackageVersion`
+
+NuGet package versions are normalized when the fourth segment is zero, so `1.5.0.0` becomes package version `1.5.0`.
+The script handles that automatically when it sets `/p:PackageVersion` and when it resolves the `.nupkg` filename for `push`.
 
 Generated packages:
 
-- `DuckDB.NET.Bindings/bin/Release/Irion.DuckDB.NET.Bindings.Full.<version>.nupkg`
-- `DuckDB.NET.Data/bin/Release/Irion.DuckDB.NET.Data.Full.<version>.nupkg`
+- `DuckDB.NET.Bindings/bin/Release/Irion.DuckDB.NET.Bindings.Full.<nuget-version>.nupkg`
+- `DuckDB.NET.Data/bin/Release/Irion.DuckDB.NET.Data.Full.<nuget-version>.nupkg`
 
 #### 5. Push packages to feed
 
@@ -162,11 +164,15 @@ Generated packages:
 #### 7. Manual equivalent (for CI or troubleshooting)
 
 ```powershell
-$env:DUCKDB_VERSION_BUILD = (Get-Content .\build\irion.version -Raw).Trim()
-dotnet pack DuckDB.NET.Bindings/Bindings.csproj -c Release /p:BuildType=Full /p:Version=$env:DUCKDB_VERSION_BUILD /p:FileVersion=$env:DUCKDB_VERSION_BUILD /p:PackageVersion=$env:DUCKDB_VERSION_BUILD
-dotnet pack DuckDB.NET.Data/Data.csproj -c Release /p:BuildType=Full /p:Version=$env:DUCKDB_VERSION_BUILD /p:FileVersion=$env:DUCKDB_VERSION_BUILD /p:PackageVersion=$env:DUCKDB_VERSION_BUILD
-dotnet nuget push --source "Repository" --api-key az .\DuckDB.NET.Data\bin\Release\Irion.DuckDB.NET.Data.Full.$env:DUCKDB_VERSION_BUILD.nupkg
-dotnet nuget push --source "Repository" --api-key az .\DuckDB.NET.Bindings\bin\Release\Irion.DuckDB.NET.Bindings.Full.$env:DUCKDB_VERSION_BUILD.nupkg
+$buildVersion = (Get-Content .\build\irion.version -Raw).Trim()
+$parsedVersion = [Version]$buildVersion
+$packageVersion = if ($parsedVersion.Revision -eq 0) { $parsedVersion.ToString(3) } else { $parsedVersion.ToString(4) }
+
+$env:DUCKDB_VERSION_BUILD = $buildVersion
+dotnet pack DuckDB.NET.Bindings/Bindings.csproj -c Release /p:BuildType=Full /p:Version=$buildVersion /p:FileVersion=$buildVersion /p:PackageVersion=$packageVersion
+dotnet pack DuckDB.NET.Data/Data.csproj -c Release /p:BuildType=Full /p:Version=$buildVersion /p:FileVersion=$buildVersion /p:PackageVersion=$packageVersion
+dotnet nuget push --source "Repository" --api-key az .\DuckDB.NET.Data\bin\Release\Irion.DuckDB.NET.Data.Full.$packageVersion.nupkg
+dotnet nuget push --source "Repository" --api-key az .\DuckDB.NET.Bindings\bin\Release\Irion.DuckDB.NET.Bindings.Full.$packageVersion.nupkg
 ```
 
 Quick checklist before publishing:

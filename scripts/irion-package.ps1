@@ -63,6 +63,18 @@ function Get-VersionFilePath {
     return (Resolve-RepoPath -Path $VersionFile)
 }
 
+function Get-NuGetPackageVersion {
+    param([Parameter(Mandatory = $true)][string]$VersionString)
+
+    $version = Parse-VersionString -VersionString $VersionString
+
+    if ($version.Revision -eq 0) {
+        return $version.ToString(3)
+    }
+
+    return $version.ToString(4)
+}
+
 function Get-CurrentVersion {
     $versionFilePath = Get-VersionFilePath
 
@@ -106,9 +118,31 @@ function Get-BumpedVersion {
     }
 }
 
+function Format-CommandArgument {
+    param([Parameter(Mandatory = $true)][string]$Argument)
+
+    if ($Argument -notmatch '[\s"]') {
+        return $Argument
+    }
+
+    return '"' + ($Argument -replace '"', '\"') + '"'
+}
+
+function Write-CommandInvocation {
+    param(
+        [Parameter(Mandatory = $true)][string]$Executable,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+
+    $formattedArguments = @($Arguments | ForEach-Object { Format-CommandArgument -Argument $_ })
+    $commandLine = (@($Executable) + $formattedArguments) -join ' '
+    Write-Host "Executing: $commandLine"
+}
+
 function Invoke-DotNet {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
 
+    Write-CommandInvocation -Executable "dotnet" -Arguments $Arguments
     & dotnet @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Command failed: dotnet $($Arguments -join ' ')"
@@ -118,6 +152,7 @@ function Invoke-DotNet {
 function Invoke-DotNetCapture {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
 
+    Write-CommandInvocation -Executable "dotnet" -Arguments $Arguments
     $output = & dotnet @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Command failed: dotnet $($Arguments -join ' ')"
@@ -144,7 +179,9 @@ function Invoke-Build {
     param([Parameter(Mandatory = $true)][string]$PackageVersion)
 
     $projects = Get-ProjectPaths
+    $nuGetPackageVersion = Get-NuGetPackageVersion -VersionString $PackageVersion
     Set-PackageVersionEnvironment -PackageVersion $PackageVersion
+    Write-Host "NuGetPackageVersion=$nuGetPackageVersion"
 
     Invoke-DotNet -Arguments @(
         "build",
@@ -153,7 +190,7 @@ function Invoke-Build {
         "/p:BuildType=Full",
         "/p:Version=$PackageVersion",
         "/p:FileVersion=$PackageVersion",
-        "/p:PackageVersion=$PackageVersion"
+        "/p:PackageVersion=$nuGetPackageVersion"
     )
 
     Invoke-DotNet -Arguments @(
@@ -163,7 +200,7 @@ function Invoke-Build {
         "/p:BuildType=Full",
         "/p:Version=$PackageVersion",
         "/p:FileVersion=$PackageVersion",
-        "/p:PackageVersion=$PackageVersion"
+        "/p:PackageVersion=$nuGetPackageVersion"
     )
 }
 
@@ -171,7 +208,9 @@ function Invoke-Pack {
     param([Parameter(Mandatory = $true)][string]$PackageVersion)
 
     $projects = Get-ProjectPaths
+    $nuGetPackageVersion = Get-NuGetPackageVersion -VersionString $PackageVersion
     Set-PackageVersionEnvironment -PackageVersion $PackageVersion
+    Write-Host "NuGetPackageVersion=$nuGetPackageVersion"
 
     Invoke-DotNet -Arguments @(
         "pack",
@@ -180,7 +219,7 @@ function Invoke-Pack {
         "/p:BuildType=Full",
         "/p:Version=$PackageVersion",
         "/p:FileVersion=$PackageVersion",
-        "/p:PackageVersion=$PackageVersion"
+        "/p:PackageVersion=$nuGetPackageVersion"
     )
 
     Invoke-DotNet -Arguments @(
@@ -190,15 +229,18 @@ function Invoke-Pack {
         "/p:BuildType=Full",
         "/p:Version=$PackageVersion",
         "/p:FileVersion=$PackageVersion",
-        "/p:PackageVersion=$PackageVersion"
+        "/p:PackageVersion=$nuGetPackageVersion"
     )
 }
 
 function Invoke-Push {
     param([Parameter(Mandatory = $true)][string]$PackageVersion)
 
-    $dataPackage = Resolve-RepoPath -Path "DuckDB.NET.Data/bin/$Configuration/$DataPackageId.$PackageVersion.nupkg"
-    $bindingsPackage = Resolve-RepoPath -Path "DuckDB.NET.Bindings/bin/$Configuration/$BindingsPackageId.$PackageVersion.nupkg"
+    $nuGetPackageVersion = Get-NuGetPackageVersion -VersionString $PackageVersion
+    Write-Host "NuGetPackageVersion=$nuGetPackageVersion"
+
+    $dataPackage = Resolve-RepoPath -Path "DuckDB.NET.Data/bin/$Configuration/$DataPackageId.$nuGetPackageVersion.nupkg"
+    $bindingsPackage = Resolve-RepoPath -Path "DuckDB.NET.Bindings/bin/$Configuration/$BindingsPackageId.$nuGetPackageVersion.nupkg"
 
     if (-not (Test-Path $dataPackage)) {
         throw "Package not found: $dataPackage. Run 'pack' first."
@@ -342,6 +384,7 @@ function Invoke-RemoteShow {
     }
     else {
         Write-Host "Local version ($VersionFile): $localVersion"
+        Write-Host "Local NuGet package version: $(Get-NuGetPackageVersion -VersionString $localVersion)"
     }
 
     $dataVersions = Get-RemoteVersions -PackageId $DataPackageId
