@@ -3,10 +3,14 @@ using DuckDB.NET.Data;
 using DuckDB.NET.Native;
 using DuckDB.NET.Test.Helpers;
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using static DuckDB.NET.Native.NativeMethods;
 
 namespace DuckDB.NET.Samples
@@ -21,13 +25,17 @@ namespace DuckDB.NET.Samples
                 return;
             }
 
-            DapperSample();
+            //DapperSample();
 
-            AdoNetSamples();
+            //AdoNetSamples();
 
-            LowLevelBindingsSample();
+            //LowLevelBindingsSample();
 
-            BulkDataLoad();
+            //BulkDataLoad();
+
+            //ParametersBinding();
+
+            TestParallelism().GetAwaiter().GetResult();
         }
 
         private static void DapperSample()
@@ -188,6 +196,82 @@ namespace DuckDB.NET.Samples
             
         }
 
+        private static void ParametersBinding()
+        {
+
+            using var duckDBConnection = new DuckDBConnection("Data Source=:memory:");
+            duckDBConnection.Open();
+
+            var testDicto = new Dictionary<string, string>
+            {
+                ["foo"] = "42",
+                ["bar"] = "test"
+            };
+            var testList = new List<string> { "foo", "bar" };
+            var testDictoList = new Dictionary<string, List<string>>
+            {
+                ["foo"] = testList
+            };
+
+            using var command = duckDBConnection.CreateCommand();
+            command.CommandText = "CREATE TABLE TestTable (foo MAP(string, string), bar MAP(string, string[]), baz string[])";
+            command.ExecuteNonQuery();
+
+            command.CommandText = "INSERT INTO TestTable (foo, bar, baz) VALUES ($testDicto, $testDictoList, $testList)";
+            command.Parameters.Add(new DuckDBParameter(testDicto));
+            command.Parameters.Add(new DuckDBParameter(testDictoList));
+            command.Parameters.Add(new DuckDBParameter(testList));  
+            command.ExecuteNonQuery();
+
+            command.CommandText = "SELECT foo, bar, baz FROM TestTable";
+            using var reader = command.ExecuteReader();
+            PrintQueryResults(reader);
+        }
+
+        private async static ValueTask TestParallelism()
+        {
+            var values15 = @"
+SET allowed_directories = ['C:\ProgramData\IrionDQ\latest\.duckdb\extensions'];
+SET temp_directory = 'C:\WINDOWS\SystemTemp\IrionDQ\.duckdb\.tmp';
+INSTALL mssql FROM community;
+LOAD mssql;
+CREATE OR REPLACE SECRET queryEngineMssqlSecret_033e34a6eea44b09a330e42827d1da10 (TYPE mssql, HOST 'NB242', PORT 1433, DATABASE 'IrionDQWorkinglatest', USER 'IrionDQ', PASSWORD 'vA9MJiNpVlwSrmV8OaU', USE_ENCRYPT FALSE, CATALOG TRUE, SCHEMA_FILTER '^(idq10|idq1)$');
+ATTACH '' AS TO_MSSQL (TYPE mssql, SECRET queryEngineMssqlSecret_033e34a6eea44b09a330e42827d1da10);
+";
+
+            var options = new ParallelOptions
+            {
+                MaxDegreeOfParallelism = 8//Environment.ProcessorCount
+            };
+
+            await Parallel.ForEachAsync(Enumerable.Range(0, 100), options, (i, ct) =>
+            {
+                using var con = new DuckDBConnection("data source=:memory:");
+                con.Open();
+
+                using var cmd = con.CreateCommand();
+
+                cmd.CommandText = "PRAGMA Version;";
+                using (var reader = cmd.ExecuteReader())
+                    PrintQueryResults(reader);
+
+                cmd.CommandText = "SELECT database_name FROM duckdb_databases()";
+                using (var reader1 = cmd.ExecuteReader())
+                    while (reader1.Read()) ;
+                //PrintQueryResults(reader1);
+
+                // Prefer SQL without INSTALL here (LOAD + CREATE SECRET + ATTACH only)
+                cmd.CommandText = values15;
+                cmd.ExecuteNonQuery();
+
+                cmd.CommandText = "DETACH TO_MSSQL";
+                cmd.ExecuteNonQuery();
+
+                Console.WriteLine($"---- {i}");
+                return ValueTask.CompletedTask;
+            });
+        }
+
         private static void PrintQueryResults(DbDataReader queryResult)
         {
             for (var index = 0; index < queryResult.FieldCount; index++)
@@ -208,7 +292,9 @@ namespace DuckDB.NET.Samples
                         continue;
                     }
                     var val = queryResult.GetValue(ordinal);
-                    Console.Write(val);
+
+                    Console.Write(FormatValue(val));
+
                     Console.Write(" ");
                 }
 
@@ -239,6 +325,38 @@ namespace DuckDB.NET.Samples
 
                 Console.WriteLine();
             }
+        }
+
+        private static string FormatValue(object? value)
+        {
+            if (value is null)
+            {
+                return "NULL";
+            }
+
+            if (value is string s)
+            {
+                return s;
+            }
+
+            if (value is IDictionary dictionary)
+            {
+                var parts = new List<string>();
+                foreach (DictionaryEntry entry in dictionary)
+                {
+                    parts.Add($"{FormatValue(entry.Key)}:{FormatValue(entry.Value)}");
+                }
+
+                return "{" + string.Join(", ", parts) + "}";
+            }
+
+            if (value is IEnumerable enumerable)
+            {
+                var parts = enumerable.Cast<object?>().Select(FormatValue);
+                return "[" + string.Join("|", parts) + "]";
+            }
+
+            return value.ToString() ?? string.Empty;
         }
     }
 

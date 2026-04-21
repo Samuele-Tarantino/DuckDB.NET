@@ -1,4 +1,6 @@
-﻿namespace DuckDB.NET.Native;
+﻿using System.Collections.Generic;
+
+namespace DuckDB.NET.Native;
 
 public class DuckDBDatabase() : SafeHandleZeroOrMinusOneIsInvalid(true)
 {
@@ -55,6 +57,17 @@ public class DuckDBExtractedStatements() : SafeHandleZeroOrMinusOneIsInvalid(tru
     {
         NativeMethods.ExtractStatements.DuckDBDestroyExtracted(ref handle);
 
+        return true;
+    }
+}
+
+public class DuckDBProfilingInfo() : SafeHandleZeroOrMinusOneIsInvalid(true)
+{
+    // No explicit destroy/free function for duckdb_profiling_info in the C API as of now.
+    // If DuckDB adds a destroy function in the future, call it here.
+    protected override bool ReleaseHandle()
+    {
+        // No-op: DuckDB does not require explicit destruction of profiling info handles.
         return true;
     }
 }
@@ -160,6 +173,25 @@ public class DuckDBValue() : SafeHandleZeroOrMinusOneIsInvalid(true), IDuckDBVal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static T Cast<TSource>(TSource value) => Unsafe.As<TSource, T>(ref value);
     }
+    public Dictionary<TKey, TValue> GetMapValue<TKey, TValue>() where TKey : notnull
+    {
+        var result = new Dictionary<TKey, TValue>();
+
+        ulong entryCount = NativeMethods.Value.DuckDBGetMapSize(this);
+        for (ulong i = 0; i < entryCount; i++)
+        {
+            using var key = NativeMethods.Value.DuckDBGetMapKey(this, i);
+            using var value = NativeMethods.Value.DuckDBGetMapValue(this, i);
+
+            var keyValue = key.GetValue<TKey>();
+            var valueValue = value.GetValue<TValue>();
+
+            result.Add(keyValue, valueValue);
+        }
+
+        return result;
+
+    }
 
     private DateTime GetTimestampValue(DuckDBTimestampStruct timestampStruct, DuckDBType duckDBType)
     {
@@ -194,6 +226,7 @@ public class DuckDBValue() : SafeHandleZeroOrMinusOneIsInvalid(true), IDuckDBVal
         var timeTz = NativeMethods.DateTimeHelpers.DuckDBFromTimeTz(timeTzStruct);
         return new DateTimeOffset(timeTz.Time.ToDateTime(), TimeSpan.FromSeconds(timeTz.Offset));
     }
+
 }
 
 public class DuckDBClientContext() : SafeHandleZeroOrMinusOneIsInvalid(true)

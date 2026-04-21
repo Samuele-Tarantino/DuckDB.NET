@@ -12,9 +12,11 @@ internal sealed class PreparedStatement : IDisposable
         this.statement = statement;
     }
 
-    public static IEnumerable<DuckDBResult> PrepareMultiple(DuckDBNativeConnection connection, string query, DuckDBParameterCollection parameters, bool useStreamingMode)
+    public static IEnumerable<DuckDBResult> PrepareMultiple(DuckDBConnection connection, string query, DuckDBParameterCollection parameters, bool useStreamingMode)
     {
-        var statementCount = NativeMethods.ExtractStatements.DuckDBExtractStatements(connection, query, out var extractedStatements);
+        var statementCount = NativeMethods.ExtractStatements.DuckDBExtractStatements(connection.NativeConnection, query, out var extractedStatements);
+
+        SqlStatistics statistics = null;
 
         using (extractedStatements)
         {
@@ -26,12 +28,14 @@ internal sealed class PreparedStatement : IDisposable
 
             for (int index = 0; index < statementCount; index++)
             {
-                var status = NativeMethods.ExtractStatements.DuckDBPrepareExtractedStatement(connection, extractedStatements, index, out var statement);
+                statistics = SqlStatistics.StartTimer(connection.Statistics);
+
+                var status = NativeMethods.ExtractStatements.DuckDBPrepareExtractedStatement(connection.NativeConnection, extractedStatements, index, out var statement);
 
                 if (status.IsSuccess())
                 {
                     using var preparedStatement = new PreparedStatement(statement);
-                    yield return preparedStatement.Execute(parameters, useStreamingMode, connection);
+                    yield return preparedStatement.Execute(parameters, useStreamingMode, connection.NativeConnection);
                 }
                 else
                 {
@@ -42,8 +46,10 @@ internal sealed class PreparedStatement : IDisposable
                         errorMessage = "DuckDBQuery failed";
                     }
 
-                    throw new DuckDBException(errorMessage, UdfExceptionStore.Retrieve(connection));
+                    throw new DuckDBException(errorMessage, UdfExceptionStore.Retrieve(connection.NativeConnection));
                 }
+
+                SqlStatistics.StopTimer(statistics);
             }
         }
     }

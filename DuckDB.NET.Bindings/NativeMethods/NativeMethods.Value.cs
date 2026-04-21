@@ -215,6 +215,18 @@ public partial class NativeMethods
         [return: MarshalUsing(typeof(DuckDBCallerOwnedStringMarshaller))]
         public static partial string DuckDBGetVarchar(DuckDBValue value);
 
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_get_map_size")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial ulong DuckDBGetMapSize(DuckDBValue value);
+
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_get_map_key")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial DuckDBValue DuckDBGetMapKey(DuckDBValue value, ulong index);
+
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_get_map_value")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial DuckDBValue DuckDBGetMapValue(DuckDBValue value, ulong index);
+
         [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_create_list_value")]
         [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
         public static partial DuckDBValue DuckDBCreateListValue(DuckDBLogicalType logicalType, IntPtr[] values, long count);
@@ -222,6 +234,10 @@ public partial class NativeMethods
         [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_create_array_value")]
         [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
         public static partial DuckDBValue DuckDBCreateArrayValue(DuckDBLogicalType logicalType, IntPtr[] values, long count);
+
+        [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_create_map_value")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial DuckDBValue DuckDBCreateMapValue(DuckDBLogicalType logicalType, IntPtr[] keys, IntPtr[] values, long count);
 
         // Maybe [SuppressGCTransition]: new Value — one small allocation
         [LibraryImport(DuckDbLibrary, EntryPoint = "duckdb_create_null_value")]
@@ -246,6 +262,15 @@ public partial class NativeMethods
         public static DuckDBValue DuckDBCreateArrayValue(DuckDBLogicalType logicalType, DuckDBValue[] values, int count)
         {
             var duckDBValue = DuckDBCreateArrayValue(logicalType, values.Select(item => item.DangerousGetHandle()).ToArray(), count);
+
+            duckDBValue.SetChildValues(values);
+
+            return duckDBValue;
+        }
+
+        public static DuckDBValue DuckDBCreateMapValue(DuckDBLogicalType logicalType, DuckDBValue[] keys, DuckDBValue[] values, int count)
+        {
+            var duckDBValue = DuckDBCreateMapValue(logicalType, keys.Select(item => item.DangerousGetHandle()).ToArray(), values.Select(item => item.DangerousGetHandle()).ToArray(), count);
 
             duckDBValue.SetChildValues(values);
 

@@ -1,7 +1,10 @@
-﻿using DuckDB.NET.Data.Connection;
+﻿using DuckDB.NET.Data.Common;
+using DuckDB.NET.Data.Connection;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics.Arm;
 
 namespace DuckDB.NET.Data;
 
@@ -12,9 +15,12 @@ public partial class DuckDBConnection : DbConnection
     private DuckDBConnectionString? parsedConnection;
     private ConnectionReference? connectionReference;
     private bool inMemoryDuplication = false;
-    
     private static readonly StateChangeEventArgs FromClosedToOpenEventArgs = new(ConnectionState.Closed, ConnectionState.Open);
     private static readonly StateChangeEventArgs FromOpenToClosedEventArgs = new(ConnectionState.Open, ConnectionState.Closed);
+
+    // Statistics support
+    internal SqlStatistics statistics;
+    private bool collectstats;
 
     #region Protected Properties
 
@@ -25,6 +31,11 @@ public partial class DuckDBConnection : DbConnection
     internal DuckDBTransaction? Transaction { get; set; }
 
     internal DuckDBConnectionString ParsedConnection => parsedConnection ??= DuckDBConnectionStringBuilder.Parse(ConnectionString);
+
+    internal SqlStatistics Statistics
+    {
+        get => statistics;
+    }
 
     public DuckDBConnection()
     {
@@ -72,6 +83,77 @@ public partial class DuckDBConnection : DbConnection
     public DuckDBNativeConnection NativeConnection => connectionReference?.NativeConnection
                                                       ?? throw new InvalidOperationException("The DuckDBConnection must be open to access the native connection.");
 
+    public DuckDBDatabase NativeDatabase => connectionReference?.FileReferenceCounter.Database
+                                              ?? throw new InvalidOperationException("The DuckDBConnection must be open to access the native database.");
+
+
+    //
+    // Summary:
+    //     When set to true, enables statistics gathering for the current connection.
+    //
+    // Value:
+    //     Returns true if statistics gathering is enabled; otherwise false. false is the
+    //     default.
+    [DefaultValue(false)]
+    public bool StatisticsEnabled
+    {
+        get
+        {
+            return (collectstats);
+        }
+        set
+        {
+            if (value)
+            {
+                // start
+                if (ConnectionState.Open == State)
+                {
+                    if (statistics == null)
+                    {
+                        statistics = new SqlStatistics();
+                        statistics.openTimestamp = TimerUtils.TimerCurrent();
+                    }
+                }
+            }
+            else
+            {
+                // stop
+                if (statistics != null)
+                {
+                    if (ConnectionState.Open == State)
+                    {
+                        statistics.closeTimestamp = TimerUtils.TimerCurrent();
+                    }
+                }
+            }
+            collectstats = value;
+        }
+    }
+
+    public IDictionary RetrieveStatistics()
+    {
+        if (Statistics != null)
+        {
+            UpdateStatistics();
+            return Statistics.GetDictionary();
+        }
+        else
+        {
+            return new SqlStatistics().GetDictionary();
+        }
+    }
+
+    private void UpdateStatistics()
+    {
+        if (ConnectionState.Open == State)
+        {
+            // update timestamp
+            statistics.closeTimestamp = TimerUtils.TimerCurrent();
+        }
+        // delegate the rest of the work to the SqlStatistics class
+        Statistics.UpdateStatistics();
+    }
+
     public override string ServerVersion => NativeMethods.Startup.DuckDBLibraryVersion();
 
     public override ConnectionState State => connectionState;
@@ -94,6 +176,9 @@ public partial class DuckDBConnection : DbConnection
         }
 
         connectionState = ConnectionState.Closed;
+
+        SqlStatistics.StopTimer(statistics);
+
         OnStateChange(FromOpenToClosedEventArgs);
     }
 
@@ -109,6 +194,9 @@ public partial class DuckDBConnection : DbConnection
                                                   : connectionManager.GetConnectionReference(ParsedConnection);
 
         connectionState = ConnectionState.Open;
+
+        _ = SqlStatistics.StartTimer(statistics);
+
         OnStateChange(FromClosedToOpenEventArgs);
     }
 
@@ -258,6 +346,7 @@ public partial class DuckDBConnection : DbConnection
             parsedConnection = ParsedConnection,
             inMemoryDuplication = true,
             connectionReference = connectionReference,
+            StatisticsEnabled = StatisticsEnabled
         };
 
         return duplicatedConnection;
