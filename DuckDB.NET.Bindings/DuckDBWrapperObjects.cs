@@ -173,7 +173,8 @@ public class DuckDBValue() : SafeHandleZeroOrMinusOneIsInvalid(true), IDuckDBVal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static T Cast<TSource>(TSource value) => Unsafe.As<TSource, T>(ref value);
     }
-    public Dictionary<TKey, TValue> GetMapValue<TKey, TValue>() where TKey : notnull
+
+    public IDictionary<TKey, TValue> GetMapValue<TKey, TValue>() where TKey : notnull
     {
         var result = new Dictionary<TKey, TValue>();
 
@@ -190,7 +191,6 @@ public class DuckDBValue() : SafeHandleZeroOrMinusOneIsInvalid(true), IDuckDBVal
         }
 
         return result;
-
     }
 
     private DateTime GetTimestampValue(DuckDBTimestampStruct timestampStruct, DuckDBType duckDBType)

@@ -1,11 +1,10 @@
 ﻿using DuckDB.NET.Data.Common;
 using System.Diagnostics;
 
-namespace DuckDB.NET.Data.Connection
+namespace DuckDB.NET.Data.Profiling.Statistics
 {
-    internal sealed class QueryExecutionTimer
+    internal sealed class StatementExecutionStatistics: ExecutionStatistics
     {
-
         // internal values that are not exposed through properties
         internal long? startExecutionTimestamp;
 
@@ -17,13 +16,13 @@ namespace DuckDB.NET.Data.Connection
         private readonly DuckDBPreparedStatement preparedStatement;
         private readonly int queryIndex;
 
-        internal QueryExecutionTimer(DuckDBPreparedStatement preparedStatement, int queryIndex)
+        internal StatementExecutionStatistics(DuckDBPreparedStatement preparedStatement, int queryIndex, DuckDBNativeConnection duckDBNativeConnection): base(duckDBNativeConnection)
         {
             this.preparedStatement = preparedStatement;
             this.queryIndex = queryIndex;
         }
 
-        internal void StartTimer()
+        internal override void StartTimer()
         {
             if (!startExecutionTimestamp.HasValue)
             {
@@ -32,7 +31,7 @@ namespace DuckDB.NET.Data.Connection
             }
         }
 
-        internal void StopTimer()
+        internal override void StopTimer()
         {
             ReleaseAndUpdateExecutionTimer();
         }
@@ -49,58 +48,37 @@ namespace DuckDB.NET.Data.Connection
             }
         }
 
-        internal void UpdateStatistics()
+        internal override void AcquireMetrics()
         {
-            // update connection time
-            if (closeTimestamp >= openTimestamp && long.MaxValue > closeTimestamp - openTimestamp)
-            {
-                connectionTime = closeTimestamp - openTimestamp;
-            }
-            else
-            {
-                connectionTime = long.MaxValue;
-            }
-        }
-
-        internal void ReadMetrics(DuckDBNativeConnection connection, int index)
-        {
-            var profile = new ProfilingInfo(connection);
+            var profile = new ProfilingInfo(duckDBNativeConnection);
 
             if (profile.TryPrepare())
             {
                 var curMetrics = profile.GetMetrics();
-                metrics[index] = curMetrics;
+                //metrics[index] = curMetrics;
             }
         }
 
         internal IDictionary GetDictionary()
         {
-            const int Count = 18;
-            var dictionary = new Dictionary<string, object>(Count)
+            //const int Count = 18;
+            var dictionary = new Dictionary<string, object>(/*Count*/)
             {
                 { "StartTime", startExecutionTime  },
                 { "EndTime", endExecutionTime },
-                { "ConnectionTime", TimerUtils.TimerToMilliseconds(connectionTime) },
                 { "ExecutionTime", TimerUtils.TimerToMilliseconds(executionTime) },
-                { "MetricsCount", metrics.Count  },
-                { "Metrics", metrics }
+                { "StatementIndex", queryIndex }
             };
-            Debug.Assert(dictionary.Count == Count);
+            //Debug.Assert(dictionary.Count == Count);
             return dictionary;
         }
 
-        internal void Reset()
+        internal override void Reset()
         {
             executionTime = 0;
             startExecutionTimestamp = null;
-            connectionTime = 0;
             startExecutionTime = default;
             endExecutionTime = default;
-        }
-
-        public void Dispose()
-        {
-            throw new NotImplementedException();
         }
     }
 }

@@ -1,14 +1,14 @@
-﻿public class ProfilingInfo
+﻿internal sealed class ProfilingInfo
 {
     private readonly DuckDBNativeConnection _connection;
     private DuckDBProfilingInfoWrapper? duckDBProfilingInfoWrapper;
 
-    public ProfilingInfo(DuckDBNativeConnection connection)
+    internal ProfilingInfo(DuckDBNativeConnection connection)
     {
         _connection = connection;
     }
 
-    public bool TryPrepare()
+    internal bool TryPrepare()
     {
         // 1. Get the profiling info root node
         using var profilingInfo = DuckDBProfilingInfoWrapper.GetProfilingInfo(_connection);
@@ -25,7 +25,7 @@
         return true;
     }
 
-    public IDictionary<string, object> GetMetrics()
+    internal IDictionary<string, object> GetMetrics()
     {
         if (duckDBProfilingInfoWrapper == null)
         {

@@ -10,7 +10,7 @@ using System.Data.Common;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
+using System.Reflection.Metadata;
 using static DuckDB.NET.Native.NativeMethods;
 
 namespace DuckDB.NET.Samples
@@ -19,11 +19,15 @@ namespace DuckDB.NET.Samples
     {
         static void Main(string[] args)
         {
-            if (!NativeLibraryHelper.TryLoad())
-            {
-                Console.Error.WriteLine("native assembly not found");
-                return;
-            }
+            //if (!NativeLibraryHelper.TryLoad())
+            //{
+            //    Console.Error.WriteLine("native assembly not found");
+            //    return;
+            //}
+            NativeDebugResolver.Initialize();
+
+            PrintVersion();
+
 
             //DapperSample();
 
@@ -35,7 +39,19 @@ namespace DuckDB.NET.Samples
 
             //ParametersBinding();
 
-            TestParallelism().GetAwaiter().GetResult();
+            Test();
+        }
+
+        private static void PrintVersion()
+        {
+            using var con = new DuckDBConnection("data source=:memory:");
+            con.Open();
+
+            using var cmd = con.CreateCommand();
+            cmd.CommandText = "PRAGMA Version";
+
+            var version = cmd.ExecuteScalar();
+            Console.WriteLine("DuckDB version: {0}", version);
         }
 
         private static void DapperSample()
@@ -145,7 +161,7 @@ namespace DuckDB.NET.Samples
                 }
             }
         }
-        
+
         private static void BulkDataLoad()
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -175,8 +191,8 @@ namespace DuckDB.NET.Samples
                     var row = appender.CreateRow();
                     row
                         .AppendValue(i)
-                        .AppendValue(Convert.ToSingle(i+2))
-                        .AppendValue(Convert.ToDouble(i+4))
+                        .AppendValue(Convert.ToSingle(i + 2))
+                        .AppendValue(Convert.ToDouble(i + 4))
                         .AppendValue($"varchar {i.ToString()}")
                         .EndRow();
                 }
@@ -193,7 +209,7 @@ namespace DuckDB.NET.Samples
             Console.WriteLine($"ElapsedMilliseconds {stopwatch.ElapsedMilliseconds}");
             Console.WriteLine($"connection state before {connection.State}");
             Console.WriteLine($"connection state after  {connection.State}");
-            
+
         }
 
         private static void ParametersBinding()
@@ -220,7 +236,7 @@ namespace DuckDB.NET.Samples
             command.CommandText = "INSERT INTO TestTable (foo, bar, baz) VALUES ($testDicto, $testDictoList, $testList)";
             command.Parameters.Add(new DuckDBParameter(testDicto));
             command.Parameters.Add(new DuckDBParameter(testDictoList));
-            command.Parameters.Add(new DuckDBParameter(testList));  
+            command.Parameters.Add(new DuckDBParameter(testList));
             command.ExecuteNonQuery();
 
             command.CommandText = "SELECT foo, bar, baz FROM TestTable";
@@ -228,48 +244,58 @@ namespace DuckDB.NET.Samples
             PrintQueryResults(reader);
         }
 
-        private async static ValueTask TestParallelism()
+        private static void Test()
         {
-            var values15 = @"
-SET allowed_directories = ['C:\ProgramData\IrionDQ\latest\.duckdb\extensions'];
-SET temp_directory = 'C:\WINDOWS\SystemTemp\IrionDQ\.duckdb\.tmp';
-INSTALL mssql FROM community;
-LOAD mssql;
-CREATE OR REPLACE SECRET queryEngineMssqlSecret_033e34a6eea44b09a330e42827d1da10 (TYPE mssql, HOST 'NB242', PORT 1433, DATABASE 'IrionDQWorkinglatest', USER 'IrionDQ', PASSWORD 'vA9MJiNpVlwSrmV8OaU', USE_ENCRYPT FALSE, CATALOG TRUE, SCHEMA_FILTER '^(idq10|idq1)$');
-ATTACH '' AS TO_MSSQL (TYPE mssql, SECRET queryEngineMssqlSecret_033e34a6eea44b09a330e42827d1da10);
-";
 
-            var options = new ParallelOptions
-            {
-                MaxDegreeOfParallelism = 8//Environment.ProcessorCount
-            };
+            var script = @"
+CREATE OR REPLACE SECRET queryEngineMssqlSecret_033e34a6eea44b09a330e42827d1da10 (
+TYPE mssql, HOST 'NB242', PORT 1433, DATABASE 'IrionDQWorkinglatest', USER 'IrionDQ', PASSWORD 'vA9MJiNpVlwSrmV8OaU', USE_ENCRYPT FALSE, CATALOG TRUE, SCHEMA_FILTER '^(idq10|idq1)$');
+ATTACH '' AS TO_MSSQL (TYPE mssql, SECRET queryEngineMssqlSecret_033e34a6eea44b09a330e42827d1da10);";
 
-            await Parallel.ForEachAsync(Enumerable.Range(0, 100), options, (i, ct) =>
+            for (int i = 0; i < 100; i++)
             {
                 using var con = new DuckDBConnection("data source=:memory:");
                 con.Open();
 
                 using var cmd = con.CreateCommand();
 
-                cmd.CommandText = "PRAGMA Version;";
-                using (var reader = cmd.ExecuteReader())
-                    PrintQueryResults(reader);
+                //cmd.CommandText = "PRAGMA Version;";
+                //using var reader = cmd.ExecuteReader();
+                //PrintQueryResults(reader);
 
-                cmd.CommandText = "SELECT database_name FROM duckdb_databases()";
-                using (var reader1 = cmd.ExecuteReader())
-                    while (reader1.Read()) ;
+                //cmd.CommandText = "SELECT database_name FROM duckdb_databases()";
+                //using var reader1 = cmd.ExecuteReader();
                 //PrintQueryResults(reader1);
 
-                // Prefer SQL without INSTALL here (LOAD + CREATE SECRET + ATTACH only)
-                cmd.CommandText = values15;
+                cmd.CommandText = script;
                 cmd.ExecuteNonQuery();
 
-                cmd.CommandText = "DETACH TO_MSSQL";
-                cmd.ExecuteNonQuery();
+                //cmd.CommandText = "DETACH TO_MSSQL";
+                //cmd.ExecuteNonQuery();
 
-                Console.WriteLine($"---- {i}");
-                return ValueTask.CompletedTask;
-            });
+                Console.WriteLine($"----{i}----");
+            }
+
+            //            using var con = new DuckDBConnection("data source=:memory:");
+            //            con.Open();
+
+            //            using var cmd = con.CreateCommand();
+
+            //            cmd.CommandText = @"
+            //CALL enable_profiling(
+            //    format := 'json',
+            //    save_location := '/path/to/output.json',
+            //    coverage := 'select',
+            //    mode := 'standard',
+            //    metrics := ['QUERY_NAME', 'LATENCY', 'OPERATOR_TIMING']
+            //);";
+            //            cmd.ExecuteNonQuery();
+
+            //            cmd.CommandText = "SELECT a:1;";
+            //            var scalar = cmd.ExecuteScalar();
+
+            //            Console.WriteLine(scalar);
+
         }
 
         private static void PrintQueryResults(DbDataReader queryResult)
@@ -281,7 +307,7 @@ ATTACH '' AS TO_MSSQL (TYPE mssql, SECRET queryEngineMssqlSecret_033e34a6eea44b0
             }
 
             Console.WriteLine();
-            
+
             while (queryResult.Read())
             {
                 for (int ordinal = 0; ordinal < queryResult.FieldCount; ordinal++)
