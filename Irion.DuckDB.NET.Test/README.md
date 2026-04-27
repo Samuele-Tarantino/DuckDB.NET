@@ -1,0 +1,99 @@
+# Irion DuckDB.NET Integration Tests
+
+This project contains Docker-backed integration tests for DuckDB extensions.
+Docker must be running before executing this project.
+
+Run the tests with:
+
+```powershell
+dotnet test .\Irion.DuckDB.NET.Test\Irion.DuckDB.NET.Test.csproj
+```
+
+If an extension must be loaded from a custom repository:
+
+```powershell
+$env:IRION_DUCKDB_EXTENSION_REPOSITORY = "https://extensions.duckdb.org"
+```
+
+## Container Framework
+
+Use `DockerIntegrationFixture` and register only the containers a test class needs:
+
+```csharp
+public sealed class MyFixture : DockerIntegrationFixture
+{
+    protected override void Configure(DockerTestEnvironmentBuilder builder)
+    {
+        builder
+            .AddPostgreSql()
+            .AddMinio()
+            .AddSqlServerExpress();
+    }
+}
+```
+
+Customize a known container by returning the modified Testcontainers builder:
+
+```csharp
+builder.AddPostgreSql(configure: pg => pg
+    .WithImage("postgres:17.5-alpine")
+    .WithDatabase("analytics"));
+```
+
+Register a fully custom container, including bind mounts or copied resources:
+
+```csharp
+builder.AddContainer("custom", "my-image:local", container => container
+    .WithBindMount(@"C:\data", "/data"));
+```
+
+The framework starts containers before the fixture runs and disposes them in reverse order.
+
+The SQL Server fixture prepares one SQL Server Express container with:
+
+- 100 tables in `dbo`, each with 10 to 50 deterministic pseudo-random columns.
+- 100 schemas named `db001` to `db100`.
+- Full table copies from `dbo` into the schemas used by the MSSQL tests.
+
+The MSSQL attach/close reproduction test runs 1000 iterations by default. For local smoke runs:
+
+```powershell
+$env:IRION_DUCKDB_MSSQL_ATTACH_CLOSE_ITERATIONS = "10"
+dotnet test .\Irion.DuckDB.NET.Test\Irion.DuckDB.NET.Test.csproj --filter DuckDb_can_open_attach_query_and_close_mssql_repeatedly
+```
+
+The MSSQL suite also includes:
+
+- Reading representative SQL Server scalar types through DuckDB's `mssql` extension.
+- Creating one SQL Server table per supported DuckDB scalar type through DuckDB's `mssql` extension, inserting one value per table, and reading those values back through DuckDB.
+
+## Containerized Test Run
+
+Run the integration test project from a .NET 10 SDK container:
+
+```powershell
+.\scripts\run-irion-integration-tests-container.ps1 -MsSqlAttachCloseIterations 10
+```
+
+The script mounts the Docker socket so Testcontainers inside the .NET SDK container can start PostgreSQL and SQL Server sibling containers.
+It also sets `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal` so the test container can connect to the mapped ports of those sibling containers.
+
+## DuckDB Query Style
+
+Keep DuckDB SQL visible in the tests and use `DuckDbTestQuery` only to manage open/execute/close:
+
+```csharp
+var result = await DuckDbTestQuery.ExecuteQueryAsync<string>(
+    setup:
+    """
+    INSTALL postgres;
+    LOAD postgres;
+    ATTACH 'host=127.0.0.1 port=5432 dbname=duckdb user=duckdb password=duckdb' AS pg (TYPE POSTGRES);
+    """,
+    query:
+    """
+    SELECT name
+    FROM pg.public.integration_numbers
+    WHERE id = 1
+    """);
+```
