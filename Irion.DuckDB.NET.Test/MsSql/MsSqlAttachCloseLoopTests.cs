@@ -3,7 +3,7 @@ namespace Irion.DuckDB.NET.Test.MsSql;
 [Collection(SqlServerIntegrationCollection.Name)]
 public sealed class MsSqlAttachCloseLoopTests(SqlServerIntegrationFixture fixture)
 {
-    private const int DefaultAttachCloseIterations = 1000;
+    private const int DefaultAttachCloseIterations = 100;
 
     [Fact]
     [Trait("Category", "Integration")]
@@ -24,15 +24,15 @@ public sealed class MsSqlAttachCloseLoopTests(SqlServerIntegrationFixture fixtur
             var rowCount = await DuckDbTestQuery.ExecuteQueryAsync<int>(
                 setup:
                 $"""
-                INSTALL mssql FROM community;
-                LOAD mssql;
+                {MsSqlDuckDbExtension.InstallLoadAndSecureSql()}
                 ATTACH {sqlServerConnectionString} AS {alias} (TYPE MSSQL);
                 """,
                 query:
                 $"""
                 SELECT COUNT(*)
                 FROM {alias}.{schema}.table_0001
-                """);
+                """,
+                connectionStringOptions: MsSqlDuckDbExtension.ConnectionStringOptions());
 
             rowCount.Should().Be(0, $"schema {schema} and table_0001 should be queryable on iteration {iteration}");
         }

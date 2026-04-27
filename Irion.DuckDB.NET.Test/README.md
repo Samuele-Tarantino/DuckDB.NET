@@ -66,6 +66,15 @@ The MSSQL suite also includes:
 
 - Reading representative SQL Server scalar types through DuckDB's `mssql` extension.
 - Creating one SQL Server table per supported DuckDB scalar type through DuckDB's `mssql` extension, inserting one value per table, and reading those values back through DuckDB.
+- Installing the `mssql` extension from the custom extension repository at `\\archsrv01\Shared\duckdb-extension` by default.
+- Opening DuckDB with `allow_unsigned_extensions=true` only for the MSSQL tests, then running `SET allow_unsigned_extensions = false` immediately after `LOAD mssql`.
+- Using an isolated local DuckDB `extension_directory` under the temp folder for installed extension files.
+
+Override the MSSQL extension repository with:
+
+```powershell
+$env:IRION_DUCKDB_MSSQL_EXTENSION_REPOSITORY = "\\archsrv01\Shared\duckdb-extension"
+```
 
 The MinIO/S3 Parquet suite covers DuckDB's `httpfs` extension with a local S3-compatible service:
 

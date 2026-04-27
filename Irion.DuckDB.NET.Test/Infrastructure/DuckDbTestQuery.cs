@@ -4,16 +4,19 @@ public static class DuckDbTestQuery
 {
     public static async Task ExecuteAsync(
         string query,
+        string? connectionStringOptions = null,
         CancellationToken cancellationToken = default)
     {
         await WithConnectionAsync(
             async connection => await ExecuteNonQueryAsync(connection, query, cancellationToken),
+            connectionStringOptions,
             cancellationToken);
     }
 
     public static async Task<T> ExecuteQueryAsync<T>(
         string query,
         string? setup = null,
+        string? connectionStringOptions = null,
         CancellationToken cancellationToken = default)
     {
         return await WithConnectionAsync(
@@ -30,18 +33,20 @@ public static class DuckDbTestQuery
                 var value = await command.ExecuteScalarAsync(cancellationToken);
                 return (T)Convert.ChangeType(value!, typeof(T));
             },
+            connectionStringOptions,
             cancellationToken);
     }
 
     private static async Task<T> WithConnectionAsync<T>(
         Func<DuckDBConnection, Task<T>> execute,
+        string? connectionStringOptions,
         CancellationToken cancellationToken)
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"duckdb-net-test-{Guid.NewGuid():N}.db");
 
         try
         {
-            await using var connection = await OpenAsync(databasePath, cancellationToken);
+            await using var connection = await OpenAsync(databasePath, connectionStringOptions, cancellationToken);
             return await execute(connection);
         }
         finally
@@ -53,9 +58,17 @@ public static class DuckDbTestQuery
 
     private static async Task<DuckDBConnection> OpenAsync(
         string databasePath,
+        string? connectionStringOptions,
         CancellationToken cancellationToken)
     {
-        var connection = new DuckDBConnection($"DataSource={databasePath}");
+        var connectionString = $"DataSource={databasePath}";
+
+        if (!string.IsNullOrWhiteSpace(connectionStringOptions))
+        {
+            connectionString += $";{connectionStringOptions}";
+        }
+
+        var connection = new DuckDBConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
         return connection;
     }
