@@ -67,6 +67,22 @@ The MSSQL suite also includes:
 - Reading representative SQL Server scalar types through DuckDB's `mssql` extension.
 - Creating one SQL Server table per supported DuckDB scalar type through DuckDB's `mssql` extension, inserting one value per table, and reading those values back through DuckDB.
 
+The MinIO/S3 Parquet suite covers DuckDB's `httpfs` extension with a local S3-compatible service:
+
+- Creating a MinIO bucket during fixture setup.
+- Writing Parquet files to `s3://...` from DuckDB.
+- Reading the same Parquet files back through DuckDB.NET.
+- Reading multiple Parquet files with a glob path.
+- Verifying representative scalar types and NULL values after a Parquet round trip.
+
+Additional S3/Parquet integration cases worth adding next:
+
+- Partitioned Parquet writes and reads with Hive partition discovery.
+- Predicate/projection behavior on larger Parquet files.
+- Compressed Parquet variants such as Snappy and Zstandard.
+- Failure diagnostics for wrong credentials, missing buckets, and missing objects.
+- Extension setup through `CREATE SECRET` once the minimum DuckDB version supports the desired syntax consistently.
+
 ## Containerized Test Run
 
 Run the integration test project from a .NET 10 SDK container:
