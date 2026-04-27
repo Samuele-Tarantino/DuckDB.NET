@@ -85,6 +85,15 @@ Additional S3/Parquet integration cases worth adding next:
 - Failure diagnostics for wrong credentials, missing buckets, and missing objects.
 - Extension setup through `CREATE SECRET` once the minimum DuckDB version supports the desired syntax consistently.
 
+The DuckLake suite covers DuckDB's `ducklake` extension using DuckDB-managed secrets:
+
+- PostgreSQL metadata catalog in a dedicated database using the `public` schema, with local filesystem Parquet data files.
+- PostgreSQL metadata catalog in a dedicated database using the `public` schema, with MinIO/S3 Parquet data files.
+- DuckLake `TYPE ducklake` secrets that reference a named PostgreSQL `TYPE postgres` secret through `METADATA_PARAMETERS`.
+- MinIO/S3 access through a scoped `TYPE s3` secret.
+- Snapshot metadata checks through `ducklake_snapshots`.
+- Parquet file materialization checks through `ducklake_table_info`.
+
 ## Containerized Test Run
 
 Run the integration test project from a .NET 10 SDK container:
