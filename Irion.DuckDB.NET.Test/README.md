@@ -74,12 +74,14 @@ The MinIO/S3 Parquet suite covers DuckDB's `httpfs` extension with a local S3-co
 - Reading the same Parquet files back through DuckDB.NET.
 - Reading multiple Parquet files with a glob path.
 - Verifying representative scalar types and NULL values after a Parquet round trip.
+- Reading Hive-partitioned Parquet datasets from S3.
+- Reading files with schema evolution through `union_by_name`.
+- Reading Zstandard-compressed Parquet files.
+- Filtering and projecting a larger remote Parquet dataset.
 
 Additional S3/Parquet integration cases worth adding next:
 
-- Partitioned Parquet writes and reads with Hive partition discovery.
-- Predicate/projection behavior on larger Parquet files.
-- Compressed Parquet variants such as Snappy and Zstandard.
+- Additional compressed Parquet variants such as Snappy.
 - Failure diagnostics for wrong credentials, missing buckets, and missing objects.
 - Extension setup through `CREATE SECRET` once the minimum DuckDB version supports the desired syntax consistently.
 
