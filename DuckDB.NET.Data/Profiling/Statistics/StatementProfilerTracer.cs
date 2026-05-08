@@ -4,7 +4,7 @@ using System.Threading;
 
 namespace DuckDB.NET.Data.Profiling.Statistics
 {
-    internal sealed class StatementProfilerTracer : ExecutionTracer
+    internal sealed class StatementProfilerTracer : ExecutionTracer, IExecutionTracer
     {
         private static readonly AsyncLocal<StatementProfilerTracer?> currentTracer = new();
 
@@ -18,6 +18,18 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         {
             get => currentTracer.Value;
             set => currentTracer.Value = value;
+        }
+
+        private StatementProfiler StatementProfiler => (StatementProfiler)statistics;
+
+        internal void AcquireMetrics()
+        {
+            StatementProfiler.AcquireProfilingInfo();
+        }
+
+        void IExecutionTracer.AcquireMetrics()
+        {
+            AcquireMetrics();
         }
     }
 }

@@ -125,11 +125,11 @@ public partial class DuckDBConnection : DbConnection
         if (statistics != null)
         {
             UpdateStatistics();
-            return statistics.GetSummary();
+            return statistics.GetProfilingSummary();
         }
         else
         {
-            return new ConnectionStatistics(NativeConnection, collectstats).GetSummary();
+            return new ConnectionStatistics(NativeConnection, collectstats).GetProfilingSummary();
         }
     }
 

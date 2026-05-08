@@ -1,9 +1,10 @@
-﻿using DuckDB.NET.Data.Profiling;
+﻿using DuckDB.NET.Data.Profiling.Statistics;
 
-internal sealed class ProfilingInfo
+internal sealed class ProfilingInfo: IDisposable
 {
     private readonly DuckDBNativeConnection connection;
     private DuckDBProfilingInfoWrapper? duckDBProfilingInfoWrapper;
+    private bool isDisposed = false;
 
     internal ProfilingInfo(DuckDBNativeConnection connection)
     {
@@ -12,7 +13,7 @@ internal sealed class ProfilingInfo
 
     internal bool TryPrepare()
     {
-        using var profilingInfo = DuckDBProfilingInfoWrapper.GetProfilingInfo(connection);
+        var profilingInfo = DuckDBProfilingInfoWrapper.GetProfilingInfo(connection);
 
         if (profilingInfo == null)
         {
@@ -71,5 +72,14 @@ internal sealed class ProfilingInfo
         //    using var child = node.GetChild(i);
         //    PrintProfilingNode(child, indent + 1);
         //}
+    }
+
+    public void Dispose()
+    {
+        if (!isDisposed)
+        {
+            duckDBProfilingInfoWrapper?.Dispose();
+            isDisposed = true;
+        }
     }
 }

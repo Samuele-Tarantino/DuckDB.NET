@@ -1,18 +1,13 @@
 ﻿namespace DuckDB.NET.Data.Profiling.Statistics
 {
-    internal abstract class ExecutionTracer : IExecutionTracer, IDisposable
+    internal abstract class ExecutionTracer : IExecutionTracerBase, IDisposable
     {
-        protected readonly ExecutionStatistics statistics;
+        protected readonly ExecutionStatisticsBase statistics;
         private bool disposed;
 
-        internal ExecutionTracer(ExecutionStatistics statistics)
+        internal ExecutionTracer(ExecutionStatisticsBase statistics)
         {
             this.statistics = statistics;
-        }
-
-        internal virtual void AcquireMetrics()
-        {
-            statistics.AcquireMetrics();
         }
 
         internal virtual void StartTimer()
@@ -56,36 +51,31 @@
             }
         }
 
-        void IExecutionTracer.AcquireMetrics()
-        {
-            AcquireMetrics();
-        }
-
-        void IExecutionTracer.StartTimer()
+        void IExecutionTracerBase.StartTimer()
         {
             StartTimer();
         }
 
-        void IExecutionTracer.StopTimer()
+        void IExecutionTracerBase.StopTimer()
         {
             StopTimer();
         }
 
-        void IExecutionTracer.SetState(DuckDBState state)
+        void IExecutionTracerBase.SetState(DuckDBState state)
         {
             SetState(state);
         }
 
-        void IExecutionTracer.SetState(DuckDBState state, string message)
+        void IExecutionTracerBase.SetState(DuckDBState state, string message)
         {
             SetState(state, message);
         }
 
-        void IExecutionTracer.SetState(DuckDBState state, DuckDBErrorType errorType, string message)
+        void IExecutionTracerBase.SetState(DuckDBState state, DuckDBErrorType errorType, string message)
         {
             SetState(state, errorType, message);
         }
 
-        DuckDBState IExecutionTracer.State => State;
+        DuckDBState IExecutionTracerBase.State => State;
     }
 }

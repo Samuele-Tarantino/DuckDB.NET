@@ -1,7 +1,4 @@
-﻿using System.Diagnostics;
-using System.Threading;
-
-namespace DuckDB.NET.Data.Profiling.Statistics
+﻿namespace DuckDB.NET.Data.Profiling.Statistics
 {
     internal sealed class QueryProfilerTracer : ExecutionTracer
     {
@@ -9,9 +6,9 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         private readonly QueryProfiler queryProfiler;
         private readonly DuckDBNativeConnection duckDBNativeConnection;
 
-        internal QueryProfilerTracer(QueryProfiler queryExecutionStatistics, DuckDBNativeConnection duckDBNativeConnection) : base(queryExecutionStatistics)
+        internal QueryProfilerTracer(QueryProfiler queryProfiler, DuckDBNativeConnection duckDBNativeConnection) : base(queryProfiler)
         {
-            this.queryProfiler = queryExecutionStatistics;
+            this.queryProfiler = queryProfiler;
             this.duckDBNativeConnection = duckDBNativeConnection;
         }
 

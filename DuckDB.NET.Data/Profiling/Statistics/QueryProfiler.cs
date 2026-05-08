@@ -1,9 +1,8 @@
 ﻿using DuckDB.NET.Data.Common;
-using System.Diagnostics;
 
 namespace DuckDB.NET.Data.Profiling.Statistics
 {
-    internal sealed class QueryProfiler : ExecutionStatistics
+    internal sealed class QueryProfiler : ExecutionStatisticsBase
     {
         // internal values that are not exposed through properties
         internal long? startExecutionTimestamp;
@@ -13,17 +12,19 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         internal long executionTime;
         internal DateTimeOffset startExecutionTime;
         internal DateTimeOffset endExecutionTime;
-        internal Dictionary<int, IDictionary<string, object>> metrics = [];
+        private Dictionary<int, ProfilingInfoMetrics> infos = [];
         private readonly IntPtr queryIdentifier;
         private readonly int statementCount;
 
-        internal QueryProfiler(IntPtr queryIdentifier, int statementCount, DuckDBNativeConnection duckDBNativeConnection): base(duckDBNativeConnection)
+        internal QueryProfiler(IntPtr queryIdentifier, int statementCount, DuckDBNativeConnection duckDBNativeConnection) : base(duckDBNativeConnection)
         {
             this.statementCount = statementCount;
             this.statementProfilers = new StatementProfiler[statementCount];
         }
 
         internal IntPtr QueryIdentifier => queryIdentifier;
+
+        internal int StatementCount => statementCount;
 
         internal bool RegisterStatementProfiler(StatementProfiler statistics, int queryIndex)
         {
@@ -47,18 +48,22 @@ namespace DuckDB.NET.Data.Profiling.Statistics
             }
         }
 
-        internal IDictionary GetDictionary()
+        private IEnumerable<ProfilingInfoMetrics> GetStatementInfo()
         {
-            //const int Count = 18;
-            var dictionary = new Dictionary<string, object>(/*Count*/)
+            foreach (var statementProfiler in statementProfilers)
             {
-                { "StartTime", startExecutionTime  },
-                { "EndTime", endExecutionTime },
-                { "ExecutionTime", TimerUtils.TimerToMilliseconds(executionTime) },
-                { "StatementCount", statementCount }
-            };
-            //Debug.Assert(dictionary.Count == Count);
-            return dictionary;
+                yield return statementProfiler?.Info ?? default;
+            }
+        }
+
+        internal ProfilingQuerySummary GetQuerySummary()
+        {
+            return new ProfilingQuerySummary(
+                 startExecutionTime,
+                 endExecutionTime,
+                 TimerUtils.TimerToMilliseconds(executionTime),
+                 statementCount,
+                 [.. GetStatementInfo()]);
         }
 
         internal override void StartTimer()
@@ -73,17 +78,6 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         internal override void StopTimer()
         {
             ReleaseAndUpdateExecutionTimer();
-        }
-
-        internal override void AcquireMetrics()
-        {
-            var profile = new ProfilingInfo(duckDBNativeConnection);
-
-            if (profile.TryPrepare())
-            {
-                var curMetrics = profile.GetMetrics();
-                //metrics[index] = curMetrics;
-            }
         }
 
         internal override void SetState(DuckDBState state, string message)

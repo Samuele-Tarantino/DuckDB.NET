@@ -12,7 +12,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         internal long executionTime;
         internal DateTimeOffset startExecutionTime;
         internal DateTimeOffset endExecutionTime;
-        internal Dictionary<int, IDictionary<string, object>> metrics = [];
+        private ProfilingInfoMetrics info;
         private readonly DuckDBPreparedStatement preparedStatement;
         private readonly int queryIndex;
 
@@ -21,6 +21,8 @@ namespace DuckDB.NET.Data.Profiling.Statistics
             this.preparedStatement = preparedStatement;
             this.queryIndex = queryIndex;
         }
+
+        public ProfilingInfoMetrics Info => info;
 
         internal override void StartTimer()
         {
@@ -48,29 +50,14 @@ namespace DuckDB.NET.Data.Profiling.Statistics
             }
         }
 
-        internal override void AcquireMetrics()
+        internal override void AcquireProfilingInfo()
         {
             var profile = new ProfilingInfo(duckDBNativeConnection);
 
             if (profile.TryPrepare())
             {
-                var curMetrics = profile.GetMetrics();
-                //metrics[index] = curMetrics;
+                info = profile.GetMetrics();
             }
-        }
-
-        internal IDictionary GetDictionary()
-        {
-            //const int Count = 18;
-            var dictionary = new Dictionary<string, object>(/*Count*/)
-            {
-                { "StartTime", startExecutionTime  },
-                { "EndTime", endExecutionTime },
-                { "ExecutionTime", TimerUtils.TimerToMilliseconds(executionTime) },
-                { "StatementIndex", queryIndex }
-            };
-            //Debug.Assert(dictionary.Count == Count);
-            return dictionary;
         }
 
         internal override void Reset()

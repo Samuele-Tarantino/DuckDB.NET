@@ -258,7 +258,6 @@ namespace DuckDB.NET.Samples
             cmd.CommandText = @"
             CALL enable_profiling(
                 format := 'json',
-                save_location := '/path/to/output.json',
                 coverage := 'select',
                 mode := 'standard',
                 metrics := ['QUERY_NAME', 'LATENCY', 'OPERATOR_TIMING']

@@ -16,8 +16,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         internal long? startExecutionTimestamp;
         private readonly bool enableQueryExecutionTracing;
         private readonly DuckDBNativeConnection duckDBNativeConnection;
-        private readonly Dictionary<IntPtr, QueryProfilerTracer> queryExecutionTracers = [];
-        private readonly Dictionary<IntPtr, List<QueryProfiler>> queryExecutionStatistics = [];
+        private readonly Dictionary<IntPtr, QueryProfiler> queryProfilers = [];
         private bool isDisposed = false;
 
         // internal values that are exposed through properties
@@ -25,7 +24,6 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         internal long connectionTime;
         internal DateTimeOffset startExecutionTime;
         internal DateTimeOffset endExecutionTime;
-        internal Dictionary<int, ProfilingInfoMetrics> metrics = [];
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ConnectionStatistics"/> class.
@@ -63,35 +61,12 @@ namespace DuckDB.NET.Data.Profiling.Statistics
                 return null;
             }
 
-            var executionStatistics = new QueryProfiler(queryIdentifier, statementCount, duckDBNativeConnection);
-            var tracer = new QueryProfilerTracer(executionStatistics, duckDBNativeConnection);
-            queryExecutionTracers[queryIdentifier] = tracer;
+            var queryProfiler = new QueryProfiler(queryIdentifier, statementCount, duckDBNativeConnection);
+            var tracer = new QueryProfilerTracer(queryProfiler, duckDBNativeConnection);
 
-            // When a new tracer is created for a query, we also create a new list to hold the execution statistics for that query.
-            if (!queryExecutionStatistics.TryGetValue(queryIdentifier, out var executionStatisticsList))
-            {
-                executionStatisticsList = [];
-                queryExecutionStatistics[queryIdentifier] = executionStatisticsList;
-            }
-            executionStatisticsList.Add(executionStatistics);
+            queryProfilers[queryIdentifier] = queryProfiler;
 
             return tracer;
-        }
-
-        internal QueryProfilerTracer? GetQueryTracer(IntPtr queryIdentifier)
-        {
-            if (!enableQueryExecutionTracing)
-            {
-                return null;
-            }
-            queryExecutionTracers.TryGetValue(queryIdentifier, out var tracer);
-            return tracer;
-        }
-
-        internal StatementProfilerTracer? GetStatementTracer(IntPtr queryIdentifier, DuckDBPreparedStatement preparedStatement)
-        {
-            var queryTracer = GetQueryTracer(queryIdentifier);
-            return queryTracer?.GetOrCreateStatementProfilerTracer(preparedStatement);
         }
 
         internal void UpdateStatistics()
@@ -107,26 +82,23 @@ namespace DuckDB.NET.Data.Profiling.Statistics
             }
         }
 
-        internal void ReadMetrics(DuckDBNativeConnection connection, int index)
+        private IEnumerable<ProfilingQuerySummary> ReadSummaries()
         {
-            var profile = new ProfilingInfo(connection);
-
-            if (profile.TryPrepare())
+            foreach (var queryProfiler in queryProfilers.Values)
             {
-                var curMetrics = profile.GetMetrics();
-                metrics[index] = curMetrics;
+                yield return queryProfiler.GetQuerySummary();
             }
         }
 
-        internal ProfilingSummary GetSummary()
+        internal ProfilingSummary GetProfilingSummary()
         {
             return new ProfilingSummary(
                 startExecutionTime,
                 endExecutionTime,
                 TimerUtils.TimerToMilliseconds(connectionTime),
                 TimerUtils.TimerToMilliseconds(executionTime),
-                metrics.Count,
-                [.. metrics.Values]);
+                queryProfilers.Values.Count,
+                [.. ReadSummaries()]);
         }
 
         internal void Reset()

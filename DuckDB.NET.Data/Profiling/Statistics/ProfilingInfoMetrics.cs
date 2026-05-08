@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace DuckDB.NET.Data.Profiling;
+namespace DuckDB.NET.Data.Profiling.Statistics;
 
 /// <summary>
 /// Strongly-typed, immutable view over profiling metric entries that can be created from
