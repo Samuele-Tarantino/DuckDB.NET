@@ -14,6 +14,9 @@ param(
     [string]$ApiKey = "az",
     [string]$DataPackageId = "Irion.DuckDB.NET.Data.Full",
     [string]$BindingsPackageId = "Irion.DuckDB.NET.Bindings.Full",
+    [string]$GitRemote = "origin",
+    [string]$TagPrefix = "v",
+    [switch]$SkipTag,
     [switch]$IncludePrerelease,
     [switch]$Interactive,
     [string]$ConfigFile
@@ -161,6 +164,63 @@ function Invoke-DotNetCapture {
     return $output
 }
 
+function Invoke-Git {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+    Write-CommandInvocation -Executable "git" -Arguments $Arguments
+    & git -C $repoRoot @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Command failed: git $($Arguments -join ' ')"
+    }
+}
+
+function Invoke-GitCapture {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+    Write-CommandInvocation -Executable "git" -Arguments $Arguments
+    $output = & git -C $repoRoot @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Command failed: git $($Arguments -join ' ')"
+    }
+
+    return $output
+}
+
+function Test-GitRefExists {
+    param([Parameter(Mandatory = $true)][string]$Ref)
+
+    & git -C $repoRoot rev-parse --verify --quiet $Ref *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Get-GitRefCommit {
+    param([Parameter(Mandatory = $true)][string]$Ref)
+
+    $output = Invoke-GitCapture -Arguments @("rev-list", "-n", "1", $Ref)
+    return (($output -join [Environment]::NewLine).Trim())
+}
+
+function Invoke-TagAndPush {
+    param([Parameter(Mandatory = $true)][string]$PackageVersion)
+
+    $tagName = "$TagPrefix$PackageVersion"
+    $headCommit = Get-GitRefCommit -Ref "HEAD"
+
+    if (Test-GitRefExists -Ref "refs/tags/$tagName") {
+        $tagCommit = Get-GitRefCommit -Ref "refs/tags/$tagName"
+        if ($tagCommit -ne $headCommit) {
+            throw "Tag '$tagName' already exists locally at $tagCommit, but HEAD is $headCommit."
+        }
+
+        Write-Host "Tag '$tagName' already exists locally at HEAD."
+    }
+    else {
+        Invoke-Git -Arguments @("tag", $tagName)
+    }
+
+    Invoke-Git -Arguments @("push", $GitRemote, "refs/tags/$tagName")
+}
+
 function Get-ProjectPaths {
     return @{
         Bindings = (Resolve-RepoPath -Path "DuckDB.NET.Bindings/Bindings.csproj")
@@ -173,6 +233,27 @@ function Set-PackageVersionEnvironment {
 
     $env:DUCKDB_VERSION_BUILD = $PackageVersion
     Write-Host "DUCKDB_VERSION_BUILD=$env:DUCKDB_VERSION_BUILD"
+}
+
+function Invoke-Clean {
+    param([Parameter(Mandatory = $true)][string]$PackageVersion)
+
+    $projects = Get-ProjectPaths
+    Set-PackageVersionEnvironment -PackageVersion $PackageVersion
+
+    Invoke-DotNet -Arguments @(
+        "clean",
+        $projects.Bindings,
+        "-c", $Configuration,
+        "/p:BuildType=Full"
+    )
+
+    Invoke-DotNet -Arguments @(
+        "clean",
+        $projects.Data,
+        "-c", $Configuration,
+        "/p:BuildType=Full"
+    )
 }
 
 function Invoke-Build {
@@ -252,6 +333,10 @@ function Invoke-Push {
 
     Invoke-DotNet -Arguments @("nuget", "push", "--source", $NuGetSource, "--api-key", $ApiKey, $dataPackage)
     Invoke-DotNet -Arguments @("nuget", "push", "--source", $NuGetSource, "--api-key", $ApiKey, $bindingsPackage)
+
+    if (-not $SkipTag) {
+        Invoke-TagAndPush -PackageVersion $PackageVersion
+    }
 }
 
 function Get-RemoteVersions {
@@ -429,6 +514,7 @@ switch ($Command) {
 
     "build" {
         $currentVersion = Get-CurrentVersion
+        Invoke-Clean -PackageVersion $currentVersion
         Invoke-Build -PackageVersion $currentVersion
         Write-Host "Build completed for version $currentVersion"
     }

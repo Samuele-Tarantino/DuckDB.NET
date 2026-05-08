@@ -130,6 +130,8 @@ You can override package IDs if needed:
 .\scripts\irion-package.ps1 -Command build
 ```
 
+The build command runs a full `dotnet clean` for both Irion projects before building.
+
 #### 4. Pack Irion NuGet packages
 
 ```powershell
@@ -155,6 +157,16 @@ Generated packages:
 .\scripts\irion-package.ps1 -Command push -NuGetSource "Repository" -ApiKey "az"
 ```
 
+After both packages are pushed successfully, the script creates a Git tag from `build/irion.version`
+using the default format `v<version>` and pushes it to `origin`.
+For example, `1.5.0.1` becomes `v1.5.0.1`.
+
+To skip tagging during a retry:
+
+```powershell
+.\scripts\irion-package.ps1 -Command push -NuGetSource "Repository" -ApiKey "az" -SkipTag
+```
+
 #### 6. One-shot pack + push
 
 ```powershell
@@ -173,6 +185,8 @@ dotnet pack DuckDB.NET.Bindings/Bindings.csproj -c Release /p:BuildType=Full /p:
 dotnet pack DuckDB.NET.Data/Data.csproj -c Release /p:BuildType=Full /p:Version=$buildVersion /p:FileVersion=$buildVersion /p:PackageVersion=$packageVersion
 dotnet nuget push --source "Repository" --api-key az .\DuckDB.NET.Data\bin\Release\Irion.DuckDB.NET.Data.Full.$packageVersion.nupkg
 dotnet nuget push --source "Repository" --api-key az .\DuckDB.NET.Bindings\bin\Release\Irion.DuckDB.NET.Bindings.Full.$packageVersion.nupkg
+git tag "v$buildVersion"
+git push origin "refs/tags/v$buildVersion"
 ```
 
 Quick checklist before publishing:
