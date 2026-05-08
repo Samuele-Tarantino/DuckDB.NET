@@ -19,12 +19,12 @@ namespace DuckDB.NET.Samples
     {
         static void Main(string[] args)
         {
-            //if (!NativeLibraryHelper.TryLoad())
-            //{
-            //    Console.Error.WriteLine("native assembly not found");
-            //    return;
-            //}
-            NativeDebugResolver.Initialize();
+            if (!NativeLibraryHelper.TryLoad())
+            {
+                Console.Error.WriteLine("native assembly not found");
+                return;
+            }
+            //NativeDebugResolver.Initialize();
 
             PrintVersion();
 
@@ -247,54 +247,30 @@ namespace DuckDB.NET.Samples
         private static void Test()
         {
 
-            var script = @"
-CREATE OR REPLACE SECRET queryEngineMssqlSecret_033e34a6eea44b09a330e42827d1da10 (
-TYPE mssql, HOST 'NB242', PORT 1433, DATABASE 'IrionDQWorkinglatest', USER 'IrionDQ', PASSWORD 'vA9MJiNpVlwSrmV8OaU', USE_ENCRYPT FALSE, CATALOG TRUE, SCHEMA_FILTER '^(idq10|idq1)$');
-ATTACH '' AS TO_MSSQL (TYPE mssql, SECRET queryEngineMssqlSecret_033e34a6eea44b09a330e42827d1da10);";
+            using var con = new DuckDBConnection("data source=:memory:");
+            con.Open();
 
-            for (int i = 0; i < 100; i++)
-            {
-                using var con = new DuckDBConnection("data source=:memory:");
-                con.Open();
+            con.ProfilingEnabled = true;
 
-                using var cmd = con.CreateCommand();
 
-                //cmd.CommandText = "PRAGMA Version;";
-                //using var reader = cmd.ExecuteReader();
-                //PrintQueryResults(reader);
+            using var cmd = con.CreateCommand();
 
-                //cmd.CommandText = "SELECT database_name FROM duckdb_databases()";
-                //using var reader1 = cmd.ExecuteReader();
-                //PrintQueryResults(reader1);
+            cmd.CommandText = @"
+            CALL enable_profiling(
+                format := 'json',
+                save_location := '/path/to/output.json',
+                coverage := 'select',
+                mode := 'standard',
+                metrics := ['QUERY_NAME', 'LATENCY', 'OPERATOR_TIMING']
+            );";
+            cmd.ExecuteNonQuery();
 
-                cmd.CommandText = script;
-                cmd.ExecuteNonQuery();
+            cmd.CommandText = "SELECT a:1;";
+            using var reader = cmd.ExecuteReader();
 
-                //cmd.CommandText = "DETACH TO_MSSQL";
-                //cmd.ExecuteNonQuery();
+            var metrics = con.RetrieveStatistics();
 
-                Console.WriteLine($"----{i}----");
-            }
-
-            //            using var con = new DuckDBConnection("data source=:memory:");
-            //            con.Open();
-
-            //            using var cmd = con.CreateCommand();
-
-            //            cmd.CommandText = @"
-            //CALL enable_profiling(
-            //    format := 'json',
-            //    save_location := '/path/to/output.json',
-            //    coverage := 'select',
-            //    mode := 'standard',
-            //    metrics := ['QUERY_NAME', 'LATENCY', 'OPERATOR_TIMING']
-            //);";
-            //            cmd.ExecuteNonQuery();
-
-            //            cmd.CommandText = "SELECT a:1;";
-            //            var scalar = cmd.ExecuteScalar();
-
-            //            Console.WriteLine(scalar);
+            PrintQueryResults(reader);
 
         }
 

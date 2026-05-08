@@ -18,7 +18,7 @@ public partial class DuckDBConnection : DbConnection
     private static readonly StateChangeEventArgs FromOpenToClosedEventArgs = new(ConnectionState.Open, ConnectionState.Closed);
 
     // Statistics support
-    internal SqlStatistics statistics;
+    internal ConnectionStatistics? statistics;
     private bool collectstats;
 
     #region Protected Properties
@@ -30,11 +30,6 @@ public partial class DuckDBConnection : DbConnection
     internal DuckDBTransaction? Transaction { get; set; }
 
     internal DuckDBConnectionString ParsedConnection => parsedConnection ??= DuckDBConnectionStringBuilder.Parse(ConnectionString);
-
-    internal SqlStatistics Statistics
-    {
-        get => statistics;
-    }
 
     public DuckDBConnection()
     {
@@ -82,6 +77,9 @@ public partial class DuckDBConnection : DbConnection
     public DuckDBNativeConnection NativeConnection => connectionReference?.NativeConnection
                                                       ?? throw new InvalidOperationException("The DuckDBConnection must be open to access the native connection.");
 
+    /// <summary>
+    /// Gets the underlying native DuckDB database instance associated with the current connection.
+    /// </summary>
     public DuckDBDatabase NativeDatabase => connectionReference?.FileReferenceCounter.Database
                                               ?? throw new InvalidOperationException("The DuckDBConnection must be open to access the native database.");
 
@@ -106,37 +104,32 @@ public partial class DuckDBConnection : DbConnection
             if (value)
             {
                 // start
-                if (statistics == null)
-                {
-                    statistics = new SqlStatistics(NativeConnection, value);
-                }
+                statistics ??= new ConnectionStatistics(NativeConnection, value);
             }
             else
             {
                 // stop
-                if (statistics != null)
-                {
-                    statistics.closeTimestamp = TimerUtils.TimerCurrent();
-                }
+                statistics?.closeTimestamp = TimerUtils.TimerCurrent();
             }
             collectstats = value;
         }
     }
 
     /// <summary>
-    /// Retrieves the current set of SQL statistics as a dictionary.
+    /// Retrieves a summary of the collected profiling statistics, including connection time, execution time, and any relevant metrics. 
+    /// If profiling is not enabled, this method will return an empty summary.
     /// </summary>
-    /// <returns>A dictionary containing the current SQL statistics. If no statistics are available, returns an empty dictionary.</returns>
-    public IDictionary RetrieveStatistics()
+    /// <returns>A <see cref="ProfilingSummary"/> containing the collected statistics.</returns>
+    public ProfilingSummary RetrieveStatistics()
     {
-        if (Statistics != null)
+        if (statistics != null)
         {
             UpdateStatistics();
-            return Statistics.GetDictionary();
+            return statistics.GetSummary();
         }
         else
         {
-            return new SqlStatistics(NativeConnection, collectstats).GetDictionary();
+            return new ConnectionStatistics(NativeConnection, collectstats).GetSummary();
         }
     }
 
@@ -149,17 +142,6 @@ public partial class DuckDBConnection : DbConnection
     public void QueryPlanCollectionThreshold(int threshold)
     {
         throw new NotImplementedException();
-    }
-
-    private void UpdateStatistics()
-    {
-        if (ConnectionState.Open == State)
-        {
-            // update timestamp
-            statistics.closeTimestamp = TimerUtils.TimerCurrent();
-        }
-        // delegate the rest of the work to the SqlStatistics class
-        Statistics.UpdateStatistics();
     }
 
     public override string ServerVersion => NativeMethods.Startup.DuckDBLibraryVersion();
@@ -203,7 +185,7 @@ public partial class DuckDBConnection : DbConnection
 
         connectionState = ConnectionState.Open;
 
-        statistics.openTimestamp = TimerUtils.TimerCurrent();
+        statistics?.openTimestamp = TimerUtils.TimerCurrent();
 
         OnStateChange(FromClosedToOpenEventArgs);
     }
@@ -326,6 +308,8 @@ public partial class DuckDBConnection : DbConnection
             {
                 Close();
             }
+
+            statistics?.Dispose();
         }
 
         base.Dispose(disposing);
@@ -373,5 +357,16 @@ public partial class DuckDBConnection : DbConnection
     {
         EnsureConnectionOpen();
         return NativeMethods.Startup.DuckDBQueryProgress(NativeConnection);
+    }
+
+    private void UpdateStatistics()
+    {
+        if (ConnectionState.Open == State)
+        {
+            // update timestamp
+            statistics?.closeTimestamp = TimerUtils.TimerCurrent();
+        }
+        // delegate the rest of the work to the SqlStatistics class
+        statistics?.UpdateStatistics();
     }
 }

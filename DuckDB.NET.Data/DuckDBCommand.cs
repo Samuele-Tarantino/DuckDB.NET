@@ -66,7 +66,7 @@ public class DuckDBCommand : DbCommand
     {
         EnsureConnectionOpen();
 
-        var results = PreparedStatement.PreparedStatement.PrepareMultiple(connection!, CommandText, parameters, UseStreamingMode);
+        var results = PreparedStatement.PreparedStatement.PrepareMultiple(connection!.NativeConnection, CommandText, parameters, UseStreamingMode);
 
         var count = 0;
 
@@ -102,7 +102,7 @@ public class DuckDBCommand : DbCommand
     {
         EnsureConnectionOpen();
 
-        var results = PreparedStatement.PreparedStatement.PrepareMultiple(connection!, CommandText, parameters, UseStreamingMode);
+        var results = PreparedStatement.PreparedStatement.PrepareMultiple(connection!.NativeConnection, CommandText, parameters, UseStreamingMode);
 
         var reader = new DuckDBDataReader(this, results, behavior);
 

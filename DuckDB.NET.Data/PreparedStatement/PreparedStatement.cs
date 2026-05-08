@@ -1,4 +1,5 @@
 using DuckDB.NET.Data.Connection;
+using DuckDB.NET.Data.Profiling.Statistics;
 using System.Linq;
 
 namespace DuckDB.NET.Data.PreparedStatement;
@@ -6,22 +7,21 @@ namespace DuckDB.NET.Data.PreparedStatement;
 internal sealed class PreparedStatement : IDisposable
 {
     private readonly DuckDBPreparedStatement statement;
-    private readonly IntPtr queryIdentifier;
 
-    private PreparedStatement(DuckDBPreparedStatement statement, IntPtr queryIdentifier)
+    private PreparedStatement(DuckDBPreparedStatement statement)
     {
         this.statement = statement;
-        this.queryIdentifier = queryIdentifier;
     }
 
-    public static IEnumerable<DuckDBResult> PrepareMultiple(DuckDBConnection connection, string query, DuckDBParameterCollection parameters, bool useStreamingMode)
+    public static IEnumerable<DuckDBResult> PrepareMultiple(DuckDBNativeConnection connection, string query, DuckDBParameterCollection parameters, bool useStreamingMode)
     {
-        var statementCount = NativeMethods.ExtractStatements.DuckDBExtractStatements(connection.NativeConnection, query, out var extractedStatements);
+        var statementCount = NativeMethods.ExtractStatements.DuckDBExtractStatements(connection, query, out var extractedStatements);
 
         using (extractedStatements)
-        {   
+        {
+            _ = ConnectionStatistics.TryGetFor(connection, out var stats);
             // Initialize the query tracer for the entire batch of statements. The tracer will be responsible for tracking the execution of all statements within this batch.
-            using var queryTracer = connection.statistics?.CreateQueryTracer(extractedStatements.ToHandle(), statementCount);
+            using var queryTracer = stats?.CreateQueryProfilerTracer(extractedStatements.ToHandle(), statementCount);
             queryTracer?.StartTimer();
 
             if (statementCount <= 0)
@@ -35,14 +35,14 @@ internal sealed class PreparedStatement : IDisposable
 
             for (int index = 0; index < statementCount; index++)
             {
-                var status = NativeMethods.ExtractStatements.DuckDBPrepareExtractedStatement(connection.NativeConnection, extractedStatements, index, out var statement);
+                var status = NativeMethods.ExtractStatements.DuckDBPrepareExtractedStatement(connection, extractedStatements, index, out var statement);
 
-                // Initialize the statement tracer for the current statement. This allows for detailed tracing of each individual statement within the batch
-                queryTracer?.PrepareStatementTracer(statement, index);
+                var statementTracer = queryTracer?.CreateStatementProfilerTracer(statement, index);
+                StatementProfilerTracer.Current = statementTracer;
 
                 if (status.IsSuccess())
                 {
-                    using var preparedStatement = new PreparedStatement(statement, extractedStatements.ToHandle());
+                    using var preparedStatement = new PreparedStatement(statement);
                     yield return preparedStatement.Execute(parameters, useStreamingMode, connection);
                 }
                 else
@@ -54,22 +54,24 @@ internal sealed class PreparedStatement : IDisposable
                         errorMessage = "DuckDBQuery failed";
                     }
 
-                    using var statementTracer = queryTracer?.GetStatementTracer(statement);
-                    statementTracer?.SetState(status, errorMessage);
+                    // Initialize the statement tracer for the current statement. This allows for detailed tracing of each individual statement within the batch
+                    using (statementTracer)
+                    {
+                        statementTracer?.SetState(status, errorMessage);
+                    }
+                    StatementProfilerTracer.Current = null;
 
-                    throw new DuckDBException(errorMessage, UdfExceptionStore.Retrieve(connection.NativeConnection));
+                    throw new DuckDBException(errorMessage, UdfExceptionStore.Retrieve(connection));
                 }
             }
         }
     }
 
-    private DuckDBResult Execute(DuckDBParameterCollection parameterCollection, bool useStreamingMode, DuckDBConnection connection)
+    private DuckDBResult Execute(DuckDBParameterCollection parameterCollection, bool useStreamingMode, DuckDBNativeConnection connection)
     {
-
         // Tracing is discriminated by query identifier, which is a combination of the query text and the index of the statement in the case of multiple statements.
         // This allows for more granular tracing of individual statements within a batch.
-        var queryTracer = connection.statistics?.GetQueryTracer(queryIdentifier);
-        using var statementTracer = queryTracer?.GetStatementTracer(statement);
+        using var statementTracer = StatementProfilerTracer.Current;
         statementTracer?.StartTimer();
 
         BindParameters(statement, parameterCollection);
@@ -96,13 +98,14 @@ internal sealed class PreparedStatement : IDisposable
                 throw new OperationCanceledException();
             }
 
-            var innerException = UdfExceptionStore.Retrieve(connection.NativeConnection);
+            var innerException = UdfExceptionStore.Retrieve(connection);
             throw innerException != null
                 ? new DuckDBException(errorMessage, innerException)
                 : new DuckDBException(errorMessage, errorType);
         }
 
         statementTracer?.AcquireMetrics();
+        StatementProfilerTracer.Current = null;
 
         return queryResult;
     }

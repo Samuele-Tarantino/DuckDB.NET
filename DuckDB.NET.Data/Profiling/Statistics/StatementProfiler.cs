@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace DuckDB.NET.Data.Profiling.Statistics
 {
-    internal sealed class StatementExecutionStatistics: ExecutionStatistics
+    internal sealed class StatementProfiler: ExecutionStatistics
     {
         // internal values that are not exposed through properties
         internal long? startExecutionTimestamp;
@@ -16,7 +16,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         private readonly DuckDBPreparedStatement preparedStatement;
         private readonly int queryIndex;
 
-        internal StatementExecutionStatistics(DuckDBPreparedStatement preparedStatement, int queryIndex, DuckDBNativeConnection duckDBNativeConnection): base(duckDBNativeConnection)
+        internal StatementProfiler(DuckDBPreparedStatement preparedStatement, int queryIndex, DuckDBNativeConnection duckDBNativeConnection): base(duckDBNativeConnection)
         {
             this.preparedStatement = preparedStatement;
             this.queryIndex = queryIndex;

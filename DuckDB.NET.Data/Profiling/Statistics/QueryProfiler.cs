@@ -3,11 +3,11 @@ using System.Diagnostics;
 
 namespace DuckDB.NET.Data.Profiling.Statistics
 {
-    internal sealed class QueryExecutionStatistics : ExecutionStatistics
+    internal sealed class QueryProfiler : ExecutionStatistics
     {
         // internal values that are not exposed through properties
         internal long? startExecutionTimestamp;
-        private readonly StatementExecutionStatistics[] executionStatistics;
+        private readonly StatementProfiler[] statementProfilers;
 
         // internal values that are exposed through properties
         internal long executionTime;
@@ -17,19 +17,19 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         private readonly IntPtr queryIdentifier;
         private readonly int statementCount;
 
-        internal QueryExecutionStatistics(IntPtr queryIdentifier, int statementCount, DuckDBNativeConnection duckDBNativeConnection): base(duckDBNativeConnection)
+        internal QueryProfiler(IntPtr queryIdentifier, int statementCount, DuckDBNativeConnection duckDBNativeConnection): base(duckDBNativeConnection)
         {
             this.statementCount = statementCount;
-            this.executionStatistics = new StatementExecutionStatistics[statementCount];
+            this.statementProfilers = new StatementProfiler[statementCount];
         }
 
         internal IntPtr QueryIdentifier => queryIdentifier;
 
-        internal bool TryAddExecutionStatistics(StatementExecutionStatistics statistics, int queryIndex)
+        internal bool RegisterStatementProfiler(StatementProfiler statistics, int queryIndex)
         {
-            if (executionStatistics[queryIndex] == null)
+            if (statementProfilers[queryIndex] == null)
             {
-                executionStatistics[queryIndex] = statistics;
+                statementProfilers[queryIndex] = statistics;
                 return true;
             }
             return false;
@@ -44,17 +44,6 @@ namespace DuckDB.NET.Data.Profiling.Statistics
                 endExecutionTime = startExecutionTime.AddTicks(elapsed);
 
                 startExecutionTimestamp = null;
-            }
-        }
-
-        internal void ReadMetrics(DuckDBNativeConnection connection, int index)
-        {
-            var profile = new ProfilingInfo(connection);
-
-            if (profile.TryPrepare())
-            {
-                var curMetrics = profile.GetMetrics();
-                metrics[index] = curMetrics;
             }
         }
 

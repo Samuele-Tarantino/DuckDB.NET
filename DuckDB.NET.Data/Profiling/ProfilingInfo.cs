@@ -1,17 +1,18 @@
-﻿internal sealed class ProfilingInfo
+﻿using DuckDB.NET.Data.Profiling;
+
+internal sealed class ProfilingInfo
 {
-    private readonly DuckDBNativeConnection _connection;
+    private readonly DuckDBNativeConnection connection;
     private DuckDBProfilingInfoWrapper? duckDBProfilingInfoWrapper;
 
     internal ProfilingInfo(DuckDBNativeConnection connection)
     {
-        _connection = connection;
+        this.connection = connection;
     }
 
     internal bool TryPrepare()
     {
-        // 1. Get the profiling info root node
-        using var profilingInfo = DuckDBProfilingInfoWrapper.GetProfilingInfo(_connection);
+        using var profilingInfo = DuckDBProfilingInfoWrapper.GetProfilingInfo(connection);
 
         if (profilingInfo == null)
         {
@@ -19,13 +20,10 @@
         }
 
         duckDBProfilingInfoWrapper = profilingInfo;
-
-        // 2. Print the profiling info recursively
-        //PrintProfilingNode(profilingInfo, 0);
         return true;
     }
 
-    internal IDictionary<string, object> GetMetrics()
+    internal ProfilingInfoMetrics GetMetrics()
     {
         if (duckDBProfilingInfoWrapper == null)
         {
@@ -35,9 +33,9 @@
         var metricsValue = duckDBProfilingInfoWrapper.GetMetrics();
         if (metricsValue.IsNull())
         {
-            return new Dictionary<string, object>();
+            return default;
         }
-        return metricsValue.GetMapValue<string, object>();
+        return ProfilingInfoMetrics.FromDictionary(metricsValue.GetMapValue<string, object>());
     }
 
     private static void PrintProfilingNode(DuckDBProfilingInfoWrapper node, int indent)
