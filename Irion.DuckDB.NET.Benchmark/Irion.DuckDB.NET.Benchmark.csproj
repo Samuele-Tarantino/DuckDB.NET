@@ -1,0 +1,45 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<TargetFrameworks>net10.0;net8</TargetFrameworks>
+	<OutputType>Exe</OutputType>
+	  
+	<AssemblyName>Irion.DuckDB.NET.Benchmark</AssemblyName>
+	<RootNamespace>Irion.DuckDB.NET.Benchmark</RootNamespace>
+	<PackageId>Irion.DuckDB.NET.Benchmark</PackageId>
+  </PropertyGroup>
+
+	<PropertyGroup>
+		<BuildType>Full</BuildType>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Include="..\DuckDB.NET.Test\Helpers\NativeLibraryHelper.cs" Link="Helpers\NativeLibraryHelper.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+	  <PackageReference Include="Microsoft.VisualStudio.DiagnosticsHub.BenchmarkDotNetDiagnosers" Version="18.7.37220.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DuckDB.NET.Bindings\Bindings.csproj" />
+    <ProjectReference Include="..\DuckDB.NET.Data\Data.csproj" />
+  </ItemGroup>
+   <ItemGroup>
+	<Folder Include="Helpers\" />
+   </ItemGroup>
+
+  <Target Name="CallExecutable" BeforeTargets="GenerateAdditionalSources">
+	<MSBuild Projects="..\DuckDB.NET.Bindings\Bindings.csproj" Targets="DownloadNativeLibs" Properties="BuildType=Full;" />
+  </Target>
+
+  <ItemGroup>
+	<None Include="..\DuckDB.NET.Bindings\obj\runtimes\**\*.dll;..\DuckDB.NET.Bindings\obj\runtimes\**\*.so;..\DuckDB.NET.Bindings\obj\runtimes\**\*.dylib;">
+	  <Visible>false</Visible>
+	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  <PackagePath>\runtimes</PackagePath>
+	  <Link>runtimes\%(RecursiveDir)\%(FileName)%(Extension)</Link>
+	</None>
+  </ItemGroup>
+</Project>
