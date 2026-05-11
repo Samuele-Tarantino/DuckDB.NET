@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="BenchmarkSuite/BenchmarkSuite.csproj" Id="e49ee9ac-e531-4245-ab1a-115a9d6a62c6" />
   <Project Path="DuckDB.NET.Bindings/Bindings.csproj" />
   <Project Path="DuckDB.NET.Data/Data.csproj" />
   <Project Path="DuckDB.NET.Samples/Samples.csproj" />
