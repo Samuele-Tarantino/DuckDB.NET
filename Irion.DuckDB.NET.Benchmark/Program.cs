@@ -2,7 +2,9 @@
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 using Irion.DuckDB.NET.Benchmark.Config;
+using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 
 namespace Irion.DuckDB.NET.Benchmark
@@ -24,6 +26,8 @@ namespace Irion.DuckDB.NET.Benchmark
 
             //clean 1.5.2 benchmark
             var type = typeof(TpchBenchmarks_Baseline);
+
+            config.ArtifactsPath = Path.Combine("BenchmarkDotNet.Artifacts", $"{type.Name}_{DateTime.Now:yyyyMMdd-HHmmss}");
 
             BenchmarkRunner.Run(type, config, args);
         }
