@@ -108,6 +108,8 @@ namespace DuckDB.NET.Data.Profiling.Statistics
             connectionTime = 0;
             startExecutionTime = default;
             endExecutionTime = default;
+
+            queryProfilers.Clear();
         }
 
         // call on connection close/dispose

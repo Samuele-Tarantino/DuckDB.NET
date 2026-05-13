@@ -52,7 +52,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         {
             foreach (var statementProfiler in statementProfilers)
             {
-                yield return statementProfiler?.Info ?? default;
+                yield return statementProfiler?.Info ?? [];
             }
         }
 

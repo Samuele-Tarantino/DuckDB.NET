@@ -34,9 +34,17 @@ internal sealed class ProfilingInfo: IDisposable
         var metricsValue = duckDBProfilingInfoWrapper.GetMetrics();
         if (metricsValue.IsNull())
         {
-            return default;
+            return [];
         }
-        return ProfilingInfoMetrics.FromDictionary(metricsValue.GetMapValue<string, object>());
+
+        //var dic = metricsValue.GetMapValue<string, object>();
+        //Console.WriteLine($"{new string(' ', 1 * 2 + 2)}Metrics:");
+        //foreach (var kvp in dic)
+        //{
+        //    Console.WriteLine($"{new string(' ', 1 * 3 + 2)} {kvp.Key}:{kvp.Value}");
+        //}
+
+        return ProfilingInfoMetrics.FromMetricsDictionary(metricsValue.GetMapValue<string, object>());
     }
 
     private static void PrintProfilingNode(DuckDBProfilingInfoWrapper node, int indent)

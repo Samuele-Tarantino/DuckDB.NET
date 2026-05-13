@@ -1,5 +1,7 @@
 ﻿using Dapper;
 using DuckDB.NET.Data;
+using DuckDB.NET.Data.Profiling;
+using DuckDB.NET.Data.Profiling.Statistics;
 using DuckDB.NET.Native;
 using DuckDB.NET.Test.Helpers;
 using System;
@@ -39,7 +41,7 @@ namespace DuckDB.NET.Samples
 
             //ParametersBinding();
 
-            Test();
+            Profiling();
         }
 
         private static void PrintVersion()
@@ -244,33 +246,68 @@ namespace DuckDB.NET.Samples
             PrintQueryResults(reader);
         }
 
-        private static void Test()
+        private static void Profiling()
         {
 
             using var con = new DuckDBConnection("data source=:memory:");
+            var options = new ProfilingOptions
+            {
+                Format = DuckDBProfilingFormat.NoOutput,
+                Mode = DuckDBProfilingMode.Detailed,
+                Coverage = DuckDBProfilingCoverage.All,
+                EnabledMetrics =
+                [
+                    DuckDBMetricType.QueryName,
+                    DuckDBMetricType.Latency,
+                    DuckDBMetricType.CpuTime,
+                    DuckDBMetricType.ResultSetSize,
+                    DuckDBMetricType.CumulativeRowsScanned,
+                    DuckDBMetricType.TotalBytesRead,
+                    DuckDBMetricType.TotalBytesWritten,
+                    DuckDBMetricType.TotalMemoryAllocated,
+                    DuckDBMetricType.SystemPeakBufferMemory,
+                    DuckDBMetricType.SystemPeakTempDirSize,
+                    DuckDBMetricType.WriteToWalLatency,
+                ]
+            };
+            con.EnableProfiling(true, options);
+
             con.Open();
 
-            con.ProfilingEnabled = true;
-
-
             using var cmd = con.CreateCommand();
-
-            cmd.CommandText = @"
-            CALL enable_profiling(
-                format := 'json',
-                coverage := 'select',
-                mode := 'standard',
-                metrics := ['QUERY_NAME', 'LATENCY', 'OPERATOR_TIMING']
-            );";
-            cmd.ExecuteNonQuery();
 
             cmd.CommandText = "SELECT a:1;";
             using var reader = cmd.ExecuteReader();
 
             var metrics = con.RetrieveStatistics();
+            
+            PrintMetrics(metrics);
 
             PrintQueryResults(reader);
 
+        }
+
+        private static void PrintMetrics(ProfilingSummary profilingSummary)
+        {
+            profilingSummary.ToDictionary().ToList().ForEach(kv => Console.WriteLine($"{kv.Key}: {(kv.Value is ProfilingQuerySummary[] ? PrintQueryInfo((ProfilingQuerySummary[])kv.Value) : kv.Value)}"));
+        }
+        private static string PrintQueryInfo(ProfilingQuerySummary[] profilingSummary)
+        {
+            return string.Join("", profilingSummary.Select((q, i) => $"\nQuery {i}: " + (PrintQueryInfo(q))));
+        }
+        private static string PrintQueryInfo(ProfilingQuerySummary profilingSummary)
+        {
+            return string.Join("", profilingSummary.ToDictionary().ToList().Select(kv => $"\n\t{kv.Key}: {(kv.Value is ProfilingInfoMetrics[] ? PrintStatementMetrics((ProfilingInfoMetrics[])kv.Value) : kv.Value)}"));
+        }
+
+        private static string PrintStatementMetrics(ProfilingInfoMetrics[] profilingSummaries)
+        {
+            return string.Join("", profilingSummaries.Select((s, i) => $"\n\tStatement {i}: " + PrintStatementMetrics(s)));
+        }
+
+        private static string PrintStatementMetrics(ProfilingInfoMetrics profilingSummary)
+        {
+            return string.Join("", profilingSummary.ToDictionary().ToList().Select(kv => $"\n\t\t{kv.Key}: {kv.Value}")); 
         }
 
         private static void PrintQueryResults(DbDataReader queryResult)

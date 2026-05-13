@@ -1,5 +1,6 @@
 ﻿using DuckDB.NET.Data.Common;
 using DuckDB.NET.Data.Connection;
+using DuckDB.NET.Data.Profiling;
 using DuckDB.NET.Data.Profiling.Statistics;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
@@ -18,8 +19,9 @@ public partial class DuckDBConnection : DbConnection
     private static readonly StateChangeEventArgs FromOpenToClosedEventArgs = new(ConnectionState.Open, ConnectionState.Closed);
 
     // Statistics support
-    internal ConnectionStatistics? statistics;
+    internal ConnectionStatistics? profilingInfo;
     private bool collectstats;
+    private ProfilingOptions profilingOptions;
 
     #region Protected Properties
 
@@ -85,55 +87,6 @@ public partial class DuckDBConnection : DbConnection
 
 
     /// <summary>
-    /// Enables or disables profiling of the connection. When enabled, the connection will collect statistics about query execution times and other relevant metrics.
-    /// </summary>
-    [DefaultValue(false)]
-    public bool ProfilingEnabled
-    {
-        get
-        {
-            return (collectstats);
-        }
-        set
-        {
-            if (State != ConnectionState.Open)
-            {
-                throw new InvalidOperationException("The DuckDBConnection must be open to start collecting statistics.");
-            }
-
-            if (value)
-            {
-                // start
-                statistics ??= new ConnectionStatistics(NativeConnection, value);
-            }
-            else
-            {
-                // stop
-                statistics?.closeTimestamp = TimerUtils.TimerCurrent();
-            }
-            collectstats = value;
-        }
-    }
-
-    /// <summary>
-    /// Retrieves a summary of the collected profiling statistics, including connection time, execution time, and any relevant metrics. 
-    /// If profiling is not enabled, this method will return an empty summary.
-    /// </summary>
-    /// <returns>A <see cref="ProfilingSummary"/> containing the collected statistics.</returns>
-    public ProfilingSummary RetrieveStatistics()
-    {
-        if (statistics != null)
-        {
-            UpdateStatistics();
-            return statistics.GetProfilingSummary();
-        }
-        else
-        {
-            return new ConnectionStatistics(NativeConnection, collectstats).GetProfilingSummary();
-        }
-    }
-
-    /// <summary>
     /// Sets the minimum execution time, in milliseconds, required for a query plan to be collected for analysis.
     /// </summary>
     /// <param name="threshold">The minimum duration, in milliseconds, that a query must run before its plan is collected. Must be a
@@ -185,7 +138,7 @@ public partial class DuckDBConnection : DbConnection
 
         connectionState = ConnectionState.Open;
 
-        statistics?.openTimestamp = TimerUtils.TimerCurrent();
+        InitProfiling();
 
         OnStateChange(FromClosedToOpenEventArgs);
     }
@@ -309,7 +262,7 @@ public partial class DuckDBConnection : DbConnection
                 Close();
             }
 
-            statistics?.Dispose();
+            profilingInfo?.Dispose();
         }
 
         base.Dispose(disposing);
@@ -338,8 +291,13 @@ public partial class DuckDBConnection : DbConnection
             parsedConnection = ParsedConnection,
             inMemoryDuplication = true,
             connectionReference = connectionReference,
-            ProfilingEnabled = ProfilingEnabled
         };
+
+        // Enable profiling on the duplicated connection so it collects the same metrics/statistics
+        if (ProfilingEnabled)
+        {
+            duplicatedConnection.EnableProfiling(true, profilingOptions);
+        }
 
         return duplicatedConnection;
     }
@@ -359,14 +317,184 @@ public partial class DuckDBConnection : DbConnection
         return NativeMethods.Startup.DuckDBQueryProgress(NativeConnection);
     }
 
+    #region profiling
+
+    public bool ProfilingEnabled => profilingInfo != null && collectstats;
+
+    /// <summary>
+    /// Retrieves a summary of the collected profiling statistics, including connection time, execution time, and any relevant metrics. 
+    /// If profiling is not enabled, this method will return an empty summary.
+    /// </summary>
+    /// <returns>A <see cref="ProfilingSummary"/> containing the collected statistics.</returns>
+    public ProfilingSummary RetrieveStatistics()
+    {
+        if (profilingInfo != null)
+        {
+            UpdateStatistics();
+            return profilingInfo.GetProfilingSummary();
+        }
+        else
+        {
+            return new ConnectionStatistics(NativeConnection, collectstats).GetProfilingSummary();
+        }
+    }
+
+    /// <summary>
+    /// Enables or disables profiling for the current connection, optionally applying the specified profiling options.
+    /// </summary>
+    /// <remarks>Profiling collects statistics about the connection's activity. If profiling is enabled while the
+    /// connection is open, statistics collection begins immediately. Disabling profiling stops statistics collection and
+    /// finalizes the current profile.</remarks>
+    /// <param name="enabled">A value indicating whether profiling should be enabled. Set to <see langword="true"/> to enable profiling;
+    /// otherwise, <see langword="false"/> to disable profiling.</param>
+    /// <param name="options">The profiling options to apply when enabling profiling. If <see langword="null"/>, default profiling options are
+    /// used. This parameter is ignored when disabling profiling.</param>
+    public void EnableProfiling(bool enabled, ProfilingOptions? options = null)
+    {
+        if (collectstats == enabled)
+        {
+            return;
+        }
+
+        if (enabled)
+        {
+            this.profilingOptions = options ?? new ProfilingOptions();  // use provided options or default options if null
+
+            if (State == ConnectionState.Open)
+            {
+                InitProfiling();
+            }
+        }
+        else
+        {
+            // stop
+            profilingInfo?.closeTimestamp = TimerUtils.TimerCurrent();
+            DisableProfiling();
+        }
+
+        collectstats = enabled;
+    }
+
+    /// <summary>
+    /// Initializes the profiling statistics for the current connection.
+    /// </summary>
+    /// <remarks>This method prepares internal data structures to collect and store profiling information
+    /// related to the connection's activity. It should be called before attempting to access profiling or statistics
+    /// data for the connection.</remarks>
+    private void InitProfiling()
+    {
+        EnsureConnectionOpen();
+
+        profilingInfo = new ConnectionStatistics(NativeConnection, collectstats);
+        LoadStatisticsProfile();
+    }
+
+    /// <summary>
+    /// Modifies the current profiling options used for collecting performance statistics.
+    /// </summary>
+    /// <param name="options">The new profiling options to apply. Cannot be null.</param>
+    /// <exception cref="InvalidOperationException">Thrown if profiling is not enabled when attempting to edit profiling options.</exception>
+    public void EditProfilingOptions(ProfilingOptions options)
+    {
+        if (!ProfilingEnabled)
+        {
+            throw new InvalidOperationException("Profiling must be enabled to edit profiling options.");
+        }
+        this.profilingOptions = options;
+
+        profilingInfo?.Reset();
+        LoadStatisticsProfile();
+    }
+
+    /// <summary>
+    /// Disables query profiling for the current database connection if profiling is enabled.
+    /// </summary>
+    /// <remarks>This method has no effect if profiling is already disabled. Disabling profiling may improve
+    /// performance for subsequent queries.</remarks>
+    /// <exception cref="DuckDBException">Thrown if an error occurs while disabling profiling on the database connection.</exception>
+    private void DisableProfiling()
+    {
+        if (ProfilingEnabled && State == ConnectionState.Open)
+        {
+            var state = NativeMethods.Query.DuckDBQuery(NativeConnection, "PRAGMA disable_profiling; PRAGMA disable_profile;", out _);
+            if (!state.IsSuccess())
+            {
+                throw new DuckDBException("Error disabling profiling.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Configures and enables query profiling for the current database connection based on the specified profiling
+    /// options.
+    /// </summary>
+    /// <remarks>Profiling is only enabled for original in-memory connections; duplicated in-memory
+    /// connections share the same profiling state and are not reconfigured. This method applies settings such as
+    /// profiling format, coverage, mode, output path, and enabled metrics according to the current profiling
+    /// options.</remarks>
+    /// <exception cref="DuckDBException">Thrown if an error occurs while setting profiling configuration options.</exception>
+    private void LoadStatisticsProfile()
+    {
+        profilingInfo?.openTimestamp = TimerUtils.TimerCurrent();
+
+        // Do not enable profiling again for duplicated in-memory connections; the original connection
+        // already has profiling enabled and the duplicated connection shares the same underlying state.
+        if (ProfilingEnabled && !inMemoryDuplication)
+        {
+
+            var state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET enable_profiling = '{profilingOptions.Format.ToDuckDBProfilingFormatString()}'", out _);
+            if (!state.IsSuccess())
+            {
+                throw new DuckDBException($"Error setting '{"enable_profiling"}' to '{profilingOptions.Format}'");
+            }
+
+            state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET profiling_coverage = '{profilingOptions.Coverage}'", out _);
+            if (!state.IsSuccess())
+            {
+                throw new DuckDBException($"Error setting '{"profiling_coverage"}' to '{profilingOptions.Coverage}'");
+            }
+
+            state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET profiling_mode = '{profilingOptions.Mode}'", out _);
+            if (!state.IsSuccess())
+            {
+                throw new DuckDBException($"Error setting '{"profiling_mode"}' to '{profilingOptions.Mode}'");
+            }
+
+            if (!string.IsNullOrEmpty(profilingOptions.OutputPath))
+            {
+                state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET profiling_output = '{profilingOptions.OutputPath}'", out _);
+                if (!state.IsSuccess())
+                {
+                    throw new DuckDBException($"Error setting '{"profiling_output"}' to '{profilingOptions.OutputPath}'");
+                }
+            }
+
+            var enabledMetrics = profilingOptions.EnabledMetrics ?? new DuckDBMetricTypeCollection(DuckDBMetrics.DefaultMetrics);
+            state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET custom_profiling_settings = '{enabledMetrics.ToDuckDBMetricString()}'", out _);
+            if (!state.IsSuccess())
+            {
+                DuckDBException? innerEx = null;
+
+                if (enabledMetrics.Contains(DuckDBMetricType.RowsReturned))
+                {
+                    innerEx = new DuckDBException($"The '{DuckDBMetricType.RowsReturned}' metric is not supported yet.", DuckDBErrorType.InvalidInput);
+                }
+                    
+                throw new DuckDBException($"Error setting '{"custom_profiling_settings"}' to '{enabledMetrics.ToDuckDBMetricString()}'", innerEx);
+                
+            }
+        }
+    }
+
     private void UpdateStatistics()
     {
         if (ConnectionState.Open == State)
         {
             // update timestamp
-            statistics?.closeTimestamp = TimerUtils.TimerCurrent();
+            profilingInfo?.closeTimestamp = TimerUtils.TimerCurrent();
         }
         // delegate the rest of the work to the SqlStatistics class
-        statistics?.UpdateStatistics();
+        profilingInfo?.UpdateStatistics();
     }
+    #endregion
 }
