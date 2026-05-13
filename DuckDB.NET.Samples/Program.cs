@@ -270,21 +270,38 @@ namespace DuckDB.NET.Samples
                     DuckDBMetricType.WriteToWalLatency,
                 ]
             };
-            con.EnableProfiling(true, options);
 
             con.Open();
 
-            using var cmd = con.CreateCommand();
+            LoadTpch(con);
 
-            cmd.CommandText = "SELECT a:1;";
-            using var reader = cmd.ExecuteReader();
+            con.EnableProfiling(true, options);           
+
+            using var cmd = con.CreateCommand();
+            //cmd.CommandText = "SELECT a:1;";
+            //using var reader = cmd.ExecuteReader();
+
+            cmd.CommandText = $"PRAGMA tpch(1);";
+            cmd.ExecuteNonQuery();
 
             var metrics = con.RetrieveStatistics();
             
             PrintMetrics(metrics);
 
-            PrintQueryResults(reader);
+            //PrintQueryResults(reader);
 
+        }
+
+        private static void LoadTpch(DuckDBConnection connection, int scaleFactor = 1)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "INSTALL tpch;";
+            cmd.ExecuteNonQuery();
+            cmd.CommandText = "LOAD tpch;";
+            cmd.ExecuteNonQuery();
+            // Generate TPCH sf=1 dataset into the current database
+            cmd.CommandText = $"CALL dbgen(sf={scaleFactor});";
+            cmd.ExecuteNonQuery();
         }
 
         private static void PrintMetrics(ProfilingSummary profilingSummary)

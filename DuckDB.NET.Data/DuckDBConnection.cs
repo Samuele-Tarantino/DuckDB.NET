@@ -319,7 +319,7 @@ public partial class DuckDBConnection : DbConnection
 
     #region profiling
 
-    public bool ProfilingEnabled => profilingInfo != null && collectstats;
+    public bool ProfilingEnabled => collectstats;
 
     /// <summary>
     /// Retrieves a summary of the collected profiling statistics, including connection time, execution time, and any relevant metrics. 
@@ -356,6 +356,8 @@ public partial class DuckDBConnection : DbConnection
             return;
         }
 
+        collectstats = enabled;
+
         if (enabled)
         {
             this.profilingOptions = options ?? new ProfilingOptions();  // use provided options or default options if null
@@ -372,7 +374,6 @@ public partial class DuckDBConnection : DbConnection
             DisableProfiling();
         }
 
-        collectstats = enabled;
     }
 
     /// <summary>
@@ -385,8 +386,11 @@ public partial class DuckDBConnection : DbConnection
     {
         EnsureConnectionOpen();
 
-        profilingInfo = new ConnectionStatistics(NativeConnection, collectstats);
-        LoadStatisticsProfile();
+        if (ProfilingEnabled)
+        {
+            profilingInfo = new ConnectionStatistics(NativeConnection, collectstats);
+            LoadStatisticsProfile();
+        }
     }
 
     /// <summary>
