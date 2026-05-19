@@ -14,7 +14,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         internal long closeTimestamp;
         internal long openTimestamp;
         internal long? startExecutionTimestamp;
-        private readonly bool enableQueryExecutionTracing;
+        private bool enableQueryExecutionTracing;
         private readonly DuckDBNativeConnection duckDBNativeConnection;
         private readonly Dictionary<IntPtr, QueryProfiler> queryProfilers = [];
         private bool isDisposed = false;
@@ -34,7 +34,30 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         {
             this.enableQueryExecutionTracing = enableQueryExecutionTracing;
             this.duckDBNativeConnection = duckDBNativeConnection;
-            ByNativeConnection.TryAdd(duckDBNativeConnection, this);
+
+            // Add or update the mapping for the native connection to this ConnectionStatistics instance
+            ByNativeConnection.AddOrUpdate(duckDBNativeConnection, this, (_, _) => this);
+        }
+
+        /// <summary>
+        /// Enables tracing of query execution for diagnostic or debugging purposes.
+        /// </summary>
+        /// <remarks>After calling this method, additional diagnostic information about query execution may be collected
+        /// or logged. This can assist in troubleshooting or performance analysis. Tracing remains enabled until explicitly
+        /// disabled</remarks>
+        internal void EnableQueryExecutionTracing()
+        {
+            this.enableQueryExecutionTracing = true;
+        }
+
+        /// <summary>
+        /// Disables tracing of query execution for the current instance.
+        /// </summary>
+        /// <remarks>After calling this method, query execution tracing will no longer be performed until explicitly
+        /// re-enabled. This may affect the ability to diagnose or audit query behavior.</remarks>
+        internal void DisableQueryExecutionTracing()
+        {
+            this.enableQueryExecutionTracing = false;
         }
 
         /// <summary>
@@ -45,7 +68,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         /// langword="null"/>.</param>
         /// <returns><see langword="true"/> if statistics are found for the specified connection; otherwise, <see
         /// langword="false"/>.</returns>
-        public static bool TryGetFor(DuckDBNativeConnection nativeConn, out ConnectionStatistics? stats)
+        internal static bool TryGetFor(DuckDBNativeConnection nativeConn, out ConnectionStatistics? stats)
             => ByNativeConnection.TryGetValue(nativeConn, out stats);
 
         /// <summary>

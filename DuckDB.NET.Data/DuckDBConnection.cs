@@ -296,7 +296,7 @@ public partial class DuckDBConnection : DbConnection
         // Enable profiling on the duplicated connection so it collects the same metrics/statistics
         if (ProfilingEnabled)
         {
-            duplicatedConnection.EnableProfiling(true, profilingOptions);
+            duplicatedConnection.EnableProfiling(profilingOptions);
         }
 
         return duplicatedConnection;
@@ -340,40 +340,52 @@ public partial class DuckDBConnection : DbConnection
     }
 
     /// <summary>
-    /// Enables or disables profiling for the current connection, optionally applying the specified profiling options.
+    /// Enables profiling for the current connection, optionally using the specified profiling options.
     /// </summary>
-    /// <remarks>Profiling collects statistics about the connection's activity. If profiling is enabled while the
-    /// connection is open, statistics collection begins immediately. Disabling profiling stops statistics collection and
-    /// finalizes the current profile.</remarks>
-    /// <param name="enabled">A value indicating whether profiling should be enabled. Set to <see langword="true"/> to enable profiling;
-    /// otherwise, <see langword="false"/> to disable profiling.</param>
-    /// <param name="options">The profiling options to apply when enabling profiling. If <see langword="null"/>, default profiling options are
-    /// used. This parameter is ignored when disabling profiling.</param>
-    public void EnableProfiling(bool enabled, ProfilingOptions? options = null)
+    /// <remarks>If profiling is enabled while the connection is already open, profiling is initialized immediately.
+    /// Otherwise, profiling will be initialized when the connection is opened.</remarks>
+    /// <param name="options">An optional set of profiling options to configure profiling behavior. If null, default options are used.</param>
+    public void EnableProfiling(ProfilingOptions? options = null)
     {
-        if (collectstats == enabled)
+        collectstats = true;
+
+        this.profilingOptions = options ?? new ProfilingOptions();  // use provided options or default options if null
+
+        if (State == ConnectionState.Open)
         {
-            return;
+            InitProfiling();
         }
+    }
 
-        collectstats = enabled;
+    /// <summary>
+    /// Disables profiling for the current session, with an option to reset collected statistics.
+    /// </summary>
+    /// <remarks>If profiling is already disabled, calling this method has no effect. Resetting statistics
+    /// clears all previously collected profiling data, which cannot be recovered.</remarks>
+    /// <param name="resetStatistics">true to reset all collected profiling statistics after disabling profiling; otherwise, false.</param>
+    public void DisableProfiling(bool resetStatistics = false)
+    {
+        // stop
+        profilingInfo?.closeTimestamp = TimerUtils.TimerCurrent();
+        DisableProfiling();
 
-        if (enabled)
+        if (resetStatistics)
         {
-            this.profilingOptions = options ?? new ProfilingOptions();  // use provided options or default options if null
-
-            if (State == ConnectionState.Open)
-            {
-                InitProfiling();
-            }
+            ResetStatistics();
         }
-        else
+    }
+
+    /// <summary>
+    /// Resets all collected profiling statistics to their initial state.
+    /// </summary>
+    /// <remarks>This method has no effect if profiling is not enabled. Use this method to clear accumulated
+    /// profiling data before starting a new measurement period.</remarks>
+    public void ResetStatistics()
+    {
+        if (ProfilingEnabled)
         {
-            // stop
-            profilingInfo?.closeTimestamp = TimerUtils.TimerCurrent();
-            DisableProfiling();
+            profilingInfo?.Reset();
         }
-
     }
 
     /// <summary>
@@ -426,6 +438,9 @@ public partial class DuckDBConnection : DbConnection
                 throw new DuckDBException("Error disabling profiling.");
             }
         }
+
+        profilingInfo?.DisableQueryExecutionTracing();
+        collectstats = false;
     }
 
     /// <summary>
@@ -483,9 +498,9 @@ public partial class DuckDBConnection : DbConnection
                 {
                     innerEx = new DuckDBException($"The '{DuckDBMetricType.RowsReturned}' metric is not supported yet.", DuckDBErrorType.InvalidInput);
                 }
-                    
+
                 throw new DuckDBException($"Error setting '{"custom_profiling_settings"}' to '{enabledMetrics.ToDuckDBMetricString()}'", innerEx);
-                
+
             }
         }
     }

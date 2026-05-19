@@ -37,13 +37,6 @@ internal sealed class ProfilingInfo: IDisposable
             return [];
         }
 
-        //var dic = metricsValue.GetMapValue<string, object>();
-        //Console.WriteLine($"{new string(' ', 1 * 2 + 2)}Metrics:");
-        //foreach (var kvp in dic)
-        //{
-        //    Console.WriteLine($"{new string(' ', 1 * 3 + 2)} {kvp.Key}:{kvp.Value}");
-        //}
-
         return ProfilingInfoMetrics.FromMetricsDictionary(metricsValue.GetMapValue<string, object>());
     }
 

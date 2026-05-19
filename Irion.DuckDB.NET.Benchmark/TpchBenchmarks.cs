@@ -90,7 +90,7 @@ namespace Irion.DuckDB.NET.Benchmark
                     Coverage = DuckDBProfilingCoverage.All,
                     EnabledMetrics = []
                 };
-                connection.EnableProfiling(true, options);
+                connection.EnableProfiling(options);
             }
         }
 

@@ -254,7 +254,7 @@ namespace DuckDB.NET.Samples
             {
                 Format = DuckDBProfilingFormat.NoOutput,
                 Mode = DuckDBProfilingMode.Detailed,
-                Coverage = DuckDBProfilingCoverage.All,
+                Coverage = DuckDBProfilingCoverage.Select,
                 EnabledMetrics =
                 [
                     DuckDBMetricType.QueryName,
@@ -273,20 +273,72 @@ namespace DuckDB.NET.Samples
 
             con.Open();
 
-            LoadTpch(con);
+            var before = con.RetrieveStatistics();
+            var beforeCount = before.QuerySummaryList.Length;
 
-            con.EnableProfiling(true, options);           
+            var id = Guid.NewGuid().ToString("N");
 
-            using var cmd = con.CreateCommand();
-            //cmd.CommandText = "SELECT a:1;";
-            //using var reader = cmd.ExecuteReader();
+            using var dBCommand = con.CreateCommand();
 
-            cmd.CommandText = $"PRAGMA tpch(1);";
-            cmd.ExecuteNonQuery();
+            //LoadTpch(con);
 
-            var metrics = con.RetrieveStatistics();
-            
-            PrintMetrics(metrics);
+            for (var selectPosition = 0; selectPosition < 3; selectPosition++)
+            {
+
+                con.EnableProfiling(options);
+
+                try
+                {
+
+                    var val = 200 + selectPosition;
+                    string a = $"t_{id}_a";
+                    string b = $"t_{id}_b";
+
+                    string cmd;
+                    if (selectPosition == 0)
+                    {
+                        cmd = $"SELECT {val}; CREATE TABLE {a}(i INTEGER); CREATE TABLE {b}(i INTEGER);";
+                    }
+                    else if (selectPosition == 1)
+                    {
+                        cmd = $"CREATE TABLE {a}(i INTEGER); SELECT {val}; CREATE TABLE {b}(i INTEGER);";
+                    }
+                    else
+                    {
+                        cmd = $"CREATE TABLE {a}(i INTEGER); CREATE TABLE {b}(i INTEGER); SELECT {val};";
+                    }
+
+                    dBCommand.CommandText = cmd;
+                    using var reader = dBCommand.ExecuteReader();
+                    do { } while (reader.NextResult());
+
+                    var summary = con.RetrieveStatistics();
+                    var newSummaries = summary.QuerySummaryList.Skip(beforeCount).ToArray();
+                    Console.WriteLine($"newSummaries length: {newSummaries.Length}");
+                }
+                finally
+                {
+                    con.DisableProfiling();
+                }
+            }
+
+                //using var cmd = con.CreateCommand();
+                //cmd.CommandText = "SELECT a:1;";
+                //using var reader = cmd.ExecuteReader();
+
+                //cmd.CommandText = $"PRAGMA tpch(1);";
+                //cmd.ExecuteNonQuery();
+
+                //var metrics = con.RetrieveStatistics();
+                //Console.WriteLine($"QuerySummaryList: {metrics.QuerySummaryList.Length}");
+
+                //cmd.CommandText = $"PRAGMA tpch(2); CREATE TABLE test (id int);";
+                //cmd.ExecuteNonQuery();
+
+                //metrics = con.RetrieveStatistics();
+                //Console.WriteLine($"QuerySummaryList: {metrics.QuerySummaryList.Length}");
+
+                //PrintMetrics(metrics);
 
             //PrintQueryResults(reader);
 
