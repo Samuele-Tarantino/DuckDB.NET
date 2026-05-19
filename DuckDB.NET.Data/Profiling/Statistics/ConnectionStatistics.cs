@@ -1,5 +1,7 @@
 ﻿using DuckDB.NET.Data.Common;
+using DuckDB.NET.Data.PreparedStatement;
 using System.Collections.Concurrent;
+using System.Linq;
 
 namespace DuckDB.NET.Data.Profiling.Statistics
 {
@@ -116,10 +118,10 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         internal ProfilingSummary GetProfilingSummary()
         {
             return new ProfilingSummary(
-                startExecutionTime,
-                endExecutionTime,
+                new DateTimeOffset(openTimestamp, TimeSpan.Zero),
+                new DateTimeOffset(connectionTime, TimeSpan.Zero),
                 TimerUtils.TimerToMilliseconds(connectionTime),
-                TimerUtils.TimerToMilliseconds(executionTime),
+                TimerUtils.TimerToMilliseconds(queryProfilers.Values.Sum(qp => qp.executionTime)),
                 queryProfilers.Values.Count,
                 [.. ReadSummaries()]);
         }
@@ -131,6 +133,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
             connectionTime = 0;
             startExecutionTime = default;
             endExecutionTime = default;
+            openTimestamp = 0;
 
             queryProfilers.Clear();
         }

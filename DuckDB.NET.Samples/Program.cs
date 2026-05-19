@@ -280,65 +280,32 @@ namespace DuckDB.NET.Samples
 
             using var dBCommand = con.CreateCommand();
 
-            //LoadTpch(con);
+            LoadTpch(con);
 
-            for (var selectPosition = 0; selectPosition < 3; selectPosition++)
-            {
+            con.EnableProfiling(options);
 
-                con.EnableProfiling(options);
+            using var cmd = con.CreateCommand();
+            cmd.CommandText = "SELECT a:1;";
+            using var reader = cmd.ExecuteReader();
+            //while (reader.Read()) { };
+            //while (reader.NextResult()) { };
+            
+            var metrics = con.RetrieveStatistics();
 
-                try
-                {
+            cmd.CommandText = $"PRAGMA tpch(1);";
+            cmd.ExecuteNonQuery();
 
-                    var val = 200 + selectPosition;
-                    string a = $"t_{id}_a";
-                    string b = $"t_{id}_b";
+            metrics = con.RetrieveStatistics();
 
-                    string cmd;
-                    if (selectPosition == 0)
-                    {
-                        cmd = $"SELECT {val}; CREATE TABLE {a}(i INTEGER); CREATE TABLE {b}(i INTEGER);";
-                    }
-                    else if (selectPosition == 1)
-                    {
-                        cmd = $"CREATE TABLE {a}(i INTEGER); SELECT {val}; CREATE TABLE {b}(i INTEGER);";
-                    }
-                    else
-                    {
-                        cmd = $"CREATE TABLE {a}(i INTEGER); CREATE TABLE {b}(i INTEGER); SELECT {val};";
-                    }
+            Console.WriteLine($"QuerySummaryList: {metrics.QuerySummaryList.Length}");
 
-                    dBCommand.CommandText = cmd;
-                    using var reader = dBCommand.ExecuteReader();
-                    do { } while (reader.NextResult());
+            cmd.CommandText = $"PRAGMA tpch(2); CREATE TABLE test (id int);";
+            cmd.ExecuteNonQuery();
 
-                    var summary = con.RetrieveStatistics();
-                    var newSummaries = summary.QuerySummaryList.Skip(beforeCount).ToArray();
-                    Console.WriteLine($"newSummaries length: {newSummaries.Length}");
-                }
-                finally
-                {
-                    con.DisableProfiling();
-                }
-            }
+            metrics = con.RetrieveStatistics();
+            Console.WriteLine($"QuerySummaryList: {metrics.QuerySummaryList.Length}");
 
-                //using var cmd = con.CreateCommand();
-                //cmd.CommandText = "SELECT a:1;";
-                //using var reader = cmd.ExecuteReader();
-
-                //cmd.CommandText = $"PRAGMA tpch(1);";
-                //cmd.ExecuteNonQuery();
-
-                //var metrics = con.RetrieveStatistics();
-                //Console.WriteLine($"QuerySummaryList: {metrics.QuerySummaryList.Length}");
-
-                //cmd.CommandText = $"PRAGMA tpch(2); CREATE TABLE test (id int);";
-                //cmd.ExecuteNonQuery();
-
-                //metrics = con.RetrieveStatistics();
-                //Console.WriteLine($"QuerySummaryList: {metrics.QuerySummaryList.Length}");
-
-                //PrintMetrics(metrics);
+            PrintMetrics(metrics);
 
             //PrintQueryResults(reader);
 
