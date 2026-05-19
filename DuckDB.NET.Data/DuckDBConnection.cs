@@ -306,6 +306,7 @@ public partial class DuckDBConnection : DbConnection
             inMemoryDuplication = true,
             connectionReference = connectionReference,
             isProfilingEnabled = isProfilingEnabled,
+            profilingOptions = profilingOptions,
         };
 
         return duplicatedConnection;
