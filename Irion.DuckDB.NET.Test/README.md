@@ -9,12 +9,6 @@ Run the tests with:
 dotnet test .\Irion.DuckDB.NET.Test\Irion.DuckDB.NET.Test.csproj
 ```
 
-If an extension must be loaded from a custom repository:
-
-```powershell
-$env:IRION_DUCKDB_EXTENSION_REPOSITORY = "https://extensions.duckdb.org"
-```
-
 ## Container Framework
 
 Use `DockerIntegrationFixture` and register only the containers a test class needs:
@@ -55,7 +49,7 @@ The SQL Server fixture prepares one SQL Server Express container with:
 - 100 schemas named `db001` to `db100`.
 - Full table copies from `dbo` into the schemas used by the MSSQL tests.
 
-The MSSQL attach/close reproduction test runs 1000 iterations by default. For local smoke runs:
+The MSSQL attach/close reproduction test runs 100 iterations by default. For local smoke runs:
 
 ```powershell
 $env:IRION_DUCKDB_MSSQL_ATTACH_CLOSE_ITERATIONS = "10"
@@ -66,14 +60,15 @@ The MSSQL suite also includes:
 
 - Reading representative SQL Server scalar types through DuckDB's `mssql` extension.
 - Creating one SQL Server table per supported DuckDB scalar type through DuckDB's `mssql` extension, inserting one value per table, and reading those values back through DuckDB.
-- Installing the `mssql` extension from the custom extension repository at `\\archsrv01\Shared\duckdb-extension` by default.
-- Opening DuckDB with `allow_unsigned_extensions=true` only for the MSSQL tests, then running `SET allow_unsigned_extensions = false` immediately after `LOAD mssql`.
+- Installing the `mssql` extension from the `Irion.DuckDb.Extensions.mssql` NuGet package by default.
+- Supporting `IRION_DUCKDB_MSSQL_EXTENSION_REPOSITORY` only as an override for custom extension repositories.
+- Opening DuckDB with `allow_unsigned_extensions=true` for the MSSQL extension, then running `SET allow_unsigned_extensions = false` immediately after `LOAD mssql`.
 - Using an isolated local DuckDB `extension_directory` under the temp folder for installed extension files.
 
 Override the MSSQL extension repository with:
 
 ```powershell
-$env:IRION_DUCKDB_MSSQL_EXTENSION_REPOSITORY = "\\archsrv01\Shared\duckdb-extension"
+$env:IRION_DUCKDB_MSSQL_EXTENSION_REPOSITORY = "C:\duckdb-extensions"
 ```
 
 The MinIO/S3 Parquet suite covers DuckDB's `httpfs` extension with a local S3-compatible service:

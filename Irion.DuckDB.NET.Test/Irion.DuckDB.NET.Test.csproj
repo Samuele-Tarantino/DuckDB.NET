@@ -18,6 +18,7 @@
     <PackageReference Include="Dapper" Version="2.1.35" />
     <PackageReference Include="FluentAssertions" Version="6.12.2" />
     <PackageReference Include="GitHubActionsTestLogger" Version="2.4.1" PrivateAssets="all" />
+    <PackageReference Include="Irion.DuckDb.Extensions.mssql" Version="1.5.2.15" GeneratePathProperty="true" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.7.2" />
     <PackageReference Include="Testcontainers" Version="4.11.0" />
     <PackageReference Include="Testcontainers.Minio" Version="4.11.0" />
@@ -42,6 +43,16 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <PackagePath>\runtimes</PackagePath>
       <Link>runtimes\%(RecursiveDir)\%(FileName)%(Extension)</Link>
+    </None>
+    <None Include="$(PkgIrion_DuckDb_Extensions_mssql)\windows_amd64\mssql.duckdb_extension.*" Condition="Exists('$(PkgIrion_DuckDb_Extensions_mssql)\windows_amd64\mssql.duckdb_extension.gz')">
+      <Visible>false</Visible>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>duckdb-extension-repository\v1.5.2\windows_amd64\%(FileName)%(Extension)</Link>
+    </None>
+    <None Include="$(PkgIrion_DuckDb_Extensions_mssql)\linux_amd64\mssql.duckdb_extension.*" Condition="Exists('$(PkgIrion_DuckDb_Extensions_mssql)\linux_amd64\mssql.duckdb_extension.gz')">
+      <Visible>false</Visible>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>duckdb-extension-repository\v1.5.2\linux_amd64\%(FileName)%(Extension)</Link>
     </None>
   </ItemGroup>
 
