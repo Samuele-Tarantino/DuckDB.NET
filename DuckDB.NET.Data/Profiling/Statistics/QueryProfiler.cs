@@ -12,7 +12,6 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         internal long executionTime;
         internal DateTimeOffset startExecutionTime;
         internal DateTimeOffset endExecutionTime;
-        private Dictionary<int, ProfilingInfoMetrics> infos = [];
         private readonly IntPtr queryIdentifier;
         private readonly int statementCount;
 

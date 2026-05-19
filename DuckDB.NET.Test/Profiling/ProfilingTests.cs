@@ -1,4 +1,5 @@
 ﻿using DuckDB.NET.Data.Profiling;
+using DuckDB.NET.Test.Helpers;
 
 namespace DuckDB.NET.Test.Profiling;
 
@@ -47,6 +48,207 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         finally
         {
             Connection.DisableProfiling();
+        }
+    }
+
+    [Fact]
+    public async Task FileBackedConnectionSharesProfilingStateWhenEnabledOnFirst()
+    {
+        // create a physical file-backed database
+        using var dbInfo = DisposableFile.GenerateInTemp("db");
+
+        // open first connection and enable profiling
+        await using (var conn1 = new DuckDBConnection(dbInfo.ConnectionString))
+        {
+            conn1.Open();
+
+            var options = new ProfilingOptions
+            {
+                Coverage = DuckDBProfilingCoverage.All,
+                EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+                Format = DuckDBProfilingFormat.Json,
+                Mode = DuckDBProfilingMode.Standard
+            };
+
+            conn1.EnableProfiling(options);
+
+            // run a query to ensure profiling collects something
+            using var cmd1 = conn1.CreateCommand();
+            cmd1.CommandText = "SELECT 1;";
+            using (var r = cmd1.ExecuteReader()) { }
+
+            // open a second connection to the same file WITHOUT enabling profiling explicitly
+            await using (var conn2 = new DuckDBConnection(dbInfo.ConnectionString))
+            {
+                conn2.Open();
+
+                // conn2 should have profiling enabled because it shares the file-backed DB state
+                conn2.ProfilingEnabled.Should().BeTrue();
+
+                // run a query on conn2 and ensure it has its own statistics recorded
+                using var cmd2 = conn2.CreateCommand();
+                cmd2.CommandText = "SELECT 2;";
+                using (var r = cmd2.ExecuteReader()) { }
+
+                var s2 = conn2.RetrieveStatistics();
+                s2.QueryCount.Should().BeGreaterThan(0);
+            }
+
+            conn1.DisableProfiling(true);
+        }
+    }
+
+    [Fact]
+    public void InMemoryDuplicateHasIndependentStatistics()
+    {
+        var options = new ProfilingOptions
+        {
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard
+        };
+
+        Connection.EnableProfiling(options);
+
+        try
+        {
+            // ensure clean start
+            Connection.ResetStatistics();
+
+            // run a query on the parent
+            Command.CommandText = "SELECT 1;";
+            using (var r = Command.ExecuteReader()) { }
+
+            var parentSummary = Connection.RetrieveStatistics();
+            parentSummary.QueryCount.Should().BeGreaterThanOrEqualTo(1);
+            var parentCount = parentSummary.QueryCount;
+
+            // create a duplicate connection and run a separate query
+            using var dup = Connection.Duplicate();
+            dup.Open();
+            using var dupCmd = dup.CreateCommand();
+            dupCmd.CommandText = "SELECT 2;";
+            using (var r = dupCmd.ExecuteReader()) { }
+
+            var dupSummary = dup.RetrieveStatistics();
+            // the duplicate should have its own stats with only the query it ran
+            dupSummary.QueryCount.Should().Be(1);
+
+            // parent stats should not include duplicate's query
+            var parentAfter = Connection.RetrieveStatistics();
+            parentAfter.QueryCount.Should().Be(parentCount);
+        }
+        finally
+        {
+            Connection.DisableProfiling(true);
+        }
+    }
+
+    [Fact]
+    public async Task FileBackedDuplicateReturnsSameMetricsAsOriginal()
+    {
+        using var dbInfo = DisposableFile.GenerateInTemp("db");
+
+        var options = new ProfilingOptions
+        {
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName, DuckDBMetricType.CpuTime, DuckDBMetricType.Latency },
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard
+        };
+
+        await using (var conn1 = new DuckDBConnection(dbInfo.ConnectionString))
+        {
+            conn1.Open();
+            conn1.EnableProfiling(options);
+
+            using (var c = conn1.CreateCommand())
+            {
+                c.CommandText = "SELECT 1;";
+                using var r = c.ExecuteReader();
+            }
+
+            await using (var conn2 = new DuckDBConnection(dbInfo.ConnectionString))
+            {
+                conn2.Open();
+                // conn2 should have profiling enabled implicitly for file-backed DB when conn1 enabled it
+                conn2.ProfilingEnabled.Should().BeTrue();
+
+                using (var c2 = conn2.CreateCommand())
+                {
+                    c2.CommandText = "SELECT 2;";
+                    using var r2 = c2.ExecuteReader();
+                }
+
+                var s1 = conn1.RetrieveStatistics();
+                var s2 = conn2.RetrieveStatistics();
+
+                s1.QuerySummaryList.Length.Should().BeGreaterThan(0, "Expected profiling summaries for original connection");
+                s2.QuerySummaryList.Length.Should().BeGreaterThan(0, "Expected profiling summaries for duplicate connection");
+
+                var last1 = s1.QuerySummaryList.Last();
+                var last2 = s2.QuerySummaryList.Last();
+
+                var keys1 = new HashSet<DuckDBMetricType>(last1.Infos.Where(i => i != null).SelectMany(i => i.Keys));
+                var keys2 = new HashSet<DuckDBMetricType>(last2.Infos.Where(i => i != null).SelectMany(i => i.Keys));
+
+                // strict check: both sets of metric keys must match
+                keys1.Should().BeEquivalentTo(keys2);
+            }
+
+            conn1.DisableProfiling(true);
+        }
+    }
+
+    [Fact]
+    public void InMemoryDuplicateReturnsSameMetricsAsOriginal()
+    {
+        var options = new ProfilingOptions
+        {
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName, DuckDBMetricType.CpuTime, DuckDBMetricType.Latency },
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard
+        };
+
+        Connection.EnableProfiling(options);
+
+        try
+        {
+            Connection.ResetStatistics();
+
+            // run a query on the original
+            Command.CommandText = "SELECT 10;";
+            using (var r = Command.ExecuteReader()) { }
+
+            // duplicate in-memory and open
+            using var dup = Connection.Duplicate();
+            dup.Open();
+
+            // run a query on duplicate
+            using var cdup = dup.CreateCommand();
+            cdup.CommandText = "SELECT 20;";
+            using (var r = cdup.ExecuteReader()) { }
+
+            var sOriginal = Connection.RetrieveStatistics();
+            var sDup = dup.RetrieveStatistics();
+
+            sOriginal.QuerySummaryList.Length.Should().BeGreaterThan(0, "Expected profiling summaries for original connection");
+            sDup.QuerySummaryList.Length.Should().BeGreaterThan(0, "Expected profiling summaries for duplicate connection");
+
+            var lastOriginal = sOriginal.QuerySummaryList.Last();
+            var lastDup = sDup.QuerySummaryList.Last();
+
+            var keysOrig = new HashSet<DuckDBMetricType>(lastOriginal.Infos.Where(i => i != null).SelectMany(i => i.Keys));
+            var keysDup = new HashSet<DuckDBMetricType>(lastDup.Infos.Where(i => i != null).SelectMany(i => i.Keys));
+
+            // strict check: both sets of metric keys must match
+            keysOrig.Should().BeEquivalentTo(keysDup);
+        }
+        finally
+        {
+            Connection.DisableProfiling(true);
         }
     }
 

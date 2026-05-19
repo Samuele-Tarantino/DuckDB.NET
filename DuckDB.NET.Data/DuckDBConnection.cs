@@ -20,8 +20,8 @@ public partial class DuckDBConnection : DbConnection
 
     // Statistics support
     internal ConnectionStatistics? profilingInfo;
-    private bool collectstats;
-    private ProfilingOptions profilingOptions;
+    private bool isProfilingEnabled;
+    private ProfilingOptions? profilingOptions;
 
     #region Protected Properties
 
@@ -137,6 +137,20 @@ public partial class DuckDBConnection : DbConnection
                                                   : connectionManager.GetConnectionReference(ParsedConnection);
 
         connectionState = ConnectionState.Open;
+
+        // If profiling is not enabled, profilingOptions will be null and we need to initialize it with the
+        // connectionReference.FileReferenceCounter to ensure that if profiling is later enabled for this connection,
+        // it will use the correct options, same for isProfilingEnabled
+        if (profilingOptions.IsNull())
+        {
+            isProfilingEnabled = connectionReference.FileReferenceCounter.IsProfilingEnabled;
+            profilingOptions = connectionReference.FileReferenceCounter.ProfilingOptions;
+        }
+        else
+        {
+            connectionReference.FileReferenceCounter.IsProfilingEnabled = isProfilingEnabled;
+            connectionReference.FileReferenceCounter.ProfilingOptions = profilingOptions.Value;
+        }
 
         InitProfiling();
 
@@ -291,13 +305,8 @@ public partial class DuckDBConnection : DbConnection
             parsedConnection = ParsedConnection,
             inMemoryDuplication = true,
             connectionReference = connectionReference,
+            isProfilingEnabled = isProfilingEnabled,
         };
-
-        // Enable profiling on the duplicated connection so it collects the same metrics/statistics
-        if (ProfilingEnabled)
-        {
-            duplicatedConnection.EnableProfiling(profilingOptions);
-        }
 
         return duplicatedConnection;
     }
@@ -319,7 +328,7 @@ public partial class DuckDBConnection : DbConnection
 
     #region profiling
 
-    public bool ProfilingEnabled => collectstats;
+    public bool ProfilingEnabled => isProfilingEnabled;
 
     /// <summary>
     /// Retrieves a summary of the collected profiling statistics, including connection time, execution time, and any relevant metrics. 
@@ -335,7 +344,7 @@ public partial class DuckDBConnection : DbConnection
         }
         else
         {
-            return new ConnectionStatistics(NativeConnection, collectstats).GetProfilingSummary();
+            return new ConnectionStatistics(NativeConnection, isProfilingEnabled).GetProfilingSummary();
         }
     }
 
@@ -347,9 +356,11 @@ public partial class DuckDBConnection : DbConnection
     /// <param name="options">An optional set of profiling options to configure profiling behavior. If null, default options are used.</param>
     public void EnableProfiling(ProfilingOptions? options = null)
     {
-        collectstats = true;
-
+        isProfilingEnabled = true;
         this.profilingOptions = options ?? new ProfilingOptions();  // use provided options or default options if null
+
+        connectionReference?.FileReferenceCounter?.IsProfilingEnabled = true;
+        connectionReference?.FileReferenceCounter?.ProfilingOptions = this.profilingOptions.Value;
 
         if (State == ConnectionState.Open)
         {
@@ -373,6 +384,8 @@ public partial class DuckDBConnection : DbConnection
         {
             ResetStatistics();
         }
+
+        connectionReference?.FileReferenceCounter?.IsProfilingEnabled = false;
     }
 
     /// <summary>
@@ -394,13 +407,13 @@ public partial class DuckDBConnection : DbConnection
     /// <remarks>This method prepares internal data structures to collect and store profiling information
     /// related to the connection's activity. It should be called before attempting to access profiling or statistics
     /// data for the connection.</remarks>
-    private void InitProfiling()
+     private void InitProfiling()
     {
         EnsureConnectionOpen();
 
         if (ProfilingEnabled)
         {
-            profilingInfo = new ConnectionStatistics(NativeConnection, collectstats);
+            profilingInfo = new ConnectionStatistics(NativeConnection, isProfilingEnabled);
             LoadStatisticsProfile();
         }
     }
@@ -440,7 +453,7 @@ public partial class DuckDBConnection : DbConnection
         }
 
         profilingInfo?.DisableQueryExecutionTracing();
-        collectstats = false;
+        isProfilingEnabled = false;
     }
 
     /// <summary>
@@ -456,39 +469,37 @@ public partial class DuckDBConnection : DbConnection
     {
         profilingInfo?.openTimestamp = TimerUtils.TimerCurrent();
 
-        // Do not enable profiling again for duplicated in-memory connections; the original connection
-        // already has profiling enabled and the duplicated connection shares the same underlying state.
-        if (ProfilingEnabled && !inMemoryDuplication)
+        if (ProfilingEnabled && profilingOptions is { } options)
         {
 
-            var state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET enable_profiling = '{profilingOptions.Format.ToDuckDBProfilingFormatString()}'", out _);
+            var state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET enable_profiling = '{options.Format.ToDuckDBProfilingFormatString()}'", out _);
             if (!state.IsSuccess())
             {
-                throw new DuckDBException($"Error setting '{"enable_profiling"}' to '{profilingOptions.Format}'");
+                throw new DuckDBException($"Error setting '{"enable_profiling"}' to '{options.Format}'");
             }
 
-            state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET profiling_coverage = '{profilingOptions.Coverage}'", out _);
+            state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET profiling_coverage = '{options.Coverage}'", out _);
             if (!state.IsSuccess())
             {
-                throw new DuckDBException($"Error setting '{"profiling_coverage"}' to '{profilingOptions.Coverage}'");
+                throw new DuckDBException($"Error setting '{"profiling_coverage"}' to '{options.Coverage}'");
             }
 
-            state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET profiling_mode = '{profilingOptions.Mode}'", out _);
+            state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET profiling_mode = '{options.Mode}'", out _);
             if (!state.IsSuccess())
             {
-                throw new DuckDBException($"Error setting '{"profiling_mode"}' to '{profilingOptions.Mode}'");
+                throw new DuckDBException($"Error setting '{"profiling_mode"}' to '{options.Mode}'");
             }
 
-            if (!string.IsNullOrEmpty(profilingOptions.OutputPath))
+            if (!string.IsNullOrEmpty(options.OutputPath))
             {
-                state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET profiling_output = '{profilingOptions.OutputPath}'", out _);
+                state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET profiling_output = '{options.OutputPath}'", out _);
                 if (!state.IsSuccess())
                 {
-                    throw new DuckDBException($"Error setting '{"profiling_output"}' to '{profilingOptions.OutputPath}'");
+                    throw new DuckDBException($"Error setting '{"profiling_output"}' to '{options.OutputPath}'");
                 }
             }
 
-            var enabledMetrics = profilingOptions.EnabledMetrics ?? new DuckDBMetricTypeCollection(DuckDBMetrics.DefaultMetrics);
+            var enabledMetrics = options.EnabledMetrics ?? new DuckDBMetricTypeCollection(DuckDBMetrics.DefaultMetrics);
             state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET custom_profiling_settings = '{enabledMetrics.ToDuckDBMetricString()}'", out _);
             if (!state.IsSuccess())
             {
