@@ -1,41 +1,37 @@
-﻿namespace DuckDB.NET.Data.Common
+﻿using System.Diagnostics;
+
+namespace DuckDB.NET.Data.Common
 {
     internal sealed class TimerUtils
     {
+        private static readonly long Frequency = Stopwatch.Frequency;
 
         /// <summary>
-        /// Gets the current UTC time as the number of ticks elapsed since 12:00:00 midnight, January 1, 0001.
+        /// Gets the current timestamp value for high-resolution timing operations.
         /// </summary>
-        /// <returns>A 64-bit integer representing the current UTC time in ticks, where one tick equals 100 nanoseconds.</returns>
-        internal static long TimerCurrent() => DateTimeOffset.UtcNow.UtcTicks;
+        /// <remarks>The returned value can be used with Stopwatch.Frequency to calculate elapsed time intervals with high
+        /// precision. This method is intended for scenarios where precise timing is required, such as performance
+        /// measurements.</remarks>
+        /// <returns>A long integer representing the current timestamp, as provided by the system's high-resolution performance counter.</returns>
+        internal static long TimerCurrent() => Stopwatch.GetTimestamp();
 
         /// <summary>
-        /// Gets the current date and time in Coordinated Universal Time (UTC).
+        /// Converts a timer value to its equivalent duration in milliseconds.
         /// </summary>
-        /// <returns>A <see cref="DateTimeOffset"/> value that represents the current UTC date and time.</returns>
-        internal static DateTimeOffset Now() => DateTimeOffset.UtcNow;
+        /// <remarks>The conversion uses the timer's frequency to determine the number of milliseconds represented by the
+        /// timer value. Ensure that the timer value and frequency are based on the same timer source.</remarks>
+        /// <param name="timerValue">The timer value to convert, typically representing elapsed timer ticks.</param>
+        /// <returns>The equivalent duration in milliseconds calculated from the specified timer value.</returns>
+        internal static long TimerToMilliseconds(long timerValue)
+            => timerValue * 1000 / Frequency;
 
         /// <summary>
         /// Calculates the elapsed number of ticks between two tick count values.
         /// </summary>
-        /// <param name="startTick">The starting tick count value, typically representing the beginning of a time interval.</param>
-        /// <param name="endTick">The ending tick count value, typically representing the end of a time interval.</param>
-        /// <returns>The number of ticks that have elapsed between the start and end tick counts, as an unsigned 32-bit integer.</returns>
-        internal static uint CalculateTickCountElapsed(long startTick, long endTick)
-        {
-
-            return (uint)(endTick - startTick);
-        }
-
-        /// <summary>
-        /// Converts a timer value expressed in ticks to its equivalent value in milliseconds.
-        /// </summary>
-        /// <param name="timerValue">The timer value, in ticks, to convert to milliseconds.</param>
-        /// <returns>The equivalent value in milliseconds as a 64-bit integer.</returns>
-        internal static long TimerToMilliseconds(long timerValue)
-        {
-            long result = timerValue / TimeSpan.TicksPerMillisecond;
-            return result;
-        }
+        /// <param name="startTick">The starting tick count value.</param>
+        /// <param name="endTick">The ending tick count value.</param>
+        /// <returns>The difference between the ending and starting tick count values, representing the elapsed ticks.</returns>
+        internal static long CalculateTickCountElapsed(long startTick, long endTick)
+            => endTick - startTick; // keep as long, no truncation
     }
 }

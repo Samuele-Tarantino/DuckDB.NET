@@ -43,7 +43,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         {
             if (startExecutionTimestamp.HasValue)
             {
-                uint elapsed = TimerUtils.CalculateTickCountElapsed(startExecutionTimestamp.Value, TimerUtils.TimerCurrent());
+                long elapsed = TimerUtils.CalculateTickCountElapsed(startExecutionTimestamp.Value, TimerUtils.TimerCurrent());
                 executionTime += elapsed;
                 endExecutionTime = startExecutionTime.AddTicks(elapsed);
 
@@ -74,7 +74,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
             if (!startExecutionTimestamp.HasValue)
             {
                 startExecutionTimestamp = TimerUtils.TimerCurrent();
-                startExecutionTime = TimerUtils.Now();
+                startExecutionTime = new DateTimeOffset(startExecutionTimestamp.Value, TimeSpan.Zero);
             }
         }
 

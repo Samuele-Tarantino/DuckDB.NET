@@ -37,7 +37,21 @@ internal sealed class ProfilingInfo: IDisposable
             return [];
         }
 
-        return ProfilingInfoMetrics.FromMetricsDictionary(metricsValue.GetMapValue<string, object>());
+        return ProfilingInfoMetrics.FromRawMetrics(metricsValue.GetMapValue<string, string>());
+    }
+
+    internal Dictionary<string, string> GetRawMetrics()
+    {
+        if (duckDBProfilingInfoWrapper == null)
+        {
+            throw new InvalidOperationException("Profiling info is not prepared. Call Prepare() first.");
+        }
+        var metricsValue = duckDBProfilingInfoWrapper.GetMetrics();
+        if (metricsValue.IsNull())
+        {
+            return new Dictionary<string, string>();
+        }
+        return metricsValue.GetMapValue<string, string>();
     }
 
     private static void PrintProfilingNode(DuckDBProfilingInfoWrapper node, int indent)

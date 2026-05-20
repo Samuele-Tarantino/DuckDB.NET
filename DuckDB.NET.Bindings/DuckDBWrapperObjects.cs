@@ -174,7 +174,7 @@ public class DuckDBValue() : SafeHandleZeroOrMinusOneIsInvalid(true), IDuckDBVal
         static T Cast<TSource>(TSource value) => Unsafe.As<TSource, T>(ref value);
     }
 
-    public IDictionary<TKey, TValue> GetMapValue<TKey, TValue>() where TKey : notnull
+    public Dictionary<TKey, TValue> GetMapValue<TKey, TValue>() where TKey : notnull
     {
         var result = new Dictionary<TKey, TValue>();
 

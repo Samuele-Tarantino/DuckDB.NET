@@ -3,7 +3,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics;
 
 public sealed class ProfilingInfoMetrics : Dictionary<DuckDBMetricType, object>
 {
-    internal static ProfilingInfoMetrics FromMetricsDictionary(IDictionary<string, object> dict)
+    internal static ProfilingInfoMetrics FromRawMetrics(Dictionary<string, string> dict)
     {
         ArgumentNullException.ThrowIfNull(dict);
 

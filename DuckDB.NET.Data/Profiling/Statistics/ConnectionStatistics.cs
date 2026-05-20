@@ -18,7 +18,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         internal long? startExecutionTimestamp;
         private bool enableQueryExecutionTracing;
         private readonly DuckDBNativeConnection duckDBNativeConnection;
-        private readonly Dictionary<IntPtr, QueryProfiler> queryProfilers = [];
+        private readonly ConcurrentDictionary<IntPtr, QueryProfiler> queryProfilers = new();
         private bool isDisposed = false;
 
         // internal values that are exposed through properties
@@ -71,7 +71,15 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         /// <returns><see langword="true"/> if statistics are found for the specified connection; otherwise, <see
         /// langword="false"/>.</returns>
         internal static bool TryGetFor(DuckDBNativeConnection nativeConn, out ConnectionStatistics? stats)
-            => ByNativeConnection.TryGetValue(nativeConn, out stats);
+        {
+            // Fast path: if no connections have profiling enabled, skip the lookup entirely
+            if (ByNativeConnection.IsEmpty)
+            {
+                stats = null;
+                return false;
+            }
+            return ByNativeConnection.TryGetValue(nativeConn, out stats);
+        }
 
         /// <summary>
         /// Creates a new <see cref="QueryProfilerTracer"/> for the specified query if query execution tracing is enabled.

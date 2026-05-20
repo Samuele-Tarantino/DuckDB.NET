@@ -5,6 +5,7 @@ using DuckDB.NET.Data.Profiling.Statistics;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace DuckDB.NET.Data;
 
@@ -472,48 +473,20 @@ public partial class DuckDBConnection : DbConnection
 
         if (ProfilingEnabled && profilingOptions is { } options)
         {
-
-            var state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET enable_profiling = '{options.Format.ToDuckDBProfilingFormatString()}'", out _);
-            if (!state.IsSuccess())
-            {
-                throw new DuckDBException($"Error setting '{"enable_profiling"}' to '{options.Format}'");
-            }
-
-            state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET profiling_coverage = '{options.Coverage}'", out _);
-            if (!state.IsSuccess())
-            {
-                throw new DuckDBException($"Error setting '{"profiling_coverage"}' to '{options.Coverage}'");
-            }
-
-            state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET profiling_mode = '{options.Mode}'", out _);
-            if (!state.IsSuccess())
-            {
-                throw new DuckDBException($"Error setting '{"profiling_mode"}' to '{options.Mode}'");
-            }
-
+            var sb = new StringBuilder();
+            sb.Append($"SET enable_profiling = '{options.Format.ToDuckDBProfilingFormatString()}';");
+            sb.Append($"SET profiling_coverage = '{options.Coverage}';");
+            sb.Append($"SET profiling_mode = '{options.Mode}';");
+            
             if (!string.IsNullOrEmpty(options.OutputPath))
-            {
-                state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET profiling_output = '{options.OutputPath}'", out _);
-                if (!state.IsSuccess())
-                {
-                    throw new DuckDBException($"Error setting '{"profiling_output"}' to '{options.OutputPath}'");
-                }
-            }
+                sb.Append($"SET profiling_output = '{options.OutputPath}';");
 
-            var enabledMetrics = options.EnabledMetrics ?? new DuckDBMetricTypeCollection(DuckDBMetrics.DefaultMetrics);
-            state = NativeMethods.Query.DuckDBQuery(NativeConnection, $"SET custom_profiling_settings = '{enabledMetrics.ToDuckDBMetricString()}'", out _);
+            var metrics = options.EnabledMetrics ?? new DuckDBMetricTypeCollection(DuckDBMetrics.DefaultMetrics);
+            sb.Append($"SET custom_profiling_settings = '{metrics.ToDuckDBMetricString()}';");
+
+            var state = NativeMethods.Query.DuckDBQuery(NativeConnection, sb.ToString(), out _);
             if (!state.IsSuccess())
-            {
-                DuckDBException? innerEx = null;
-
-                if (enabledMetrics.Contains(DuckDBMetricType.RowsReturned))
-                {
-                    innerEx = new DuckDBException($"The '{DuckDBMetricType.RowsReturned}' metric is not supported yet.", DuckDBErrorType.InvalidInput);
-                }
-
-                throw new DuckDBException($"Error setting '{"custom_profiling_settings"}' to '{enabledMetrics.ToDuckDBMetricString()}'", innerEx);
-
-            }
+                throw new DuckDBException("Error configuring profiling settings.");
         }
     }
 

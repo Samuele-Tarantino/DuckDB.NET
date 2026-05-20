@@ -12,8 +12,11 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         internal long executionTime;
         internal DateTimeOffset startExecutionTime;
         internal DateTimeOffset endExecutionTime;
-        private ProfilingInfoMetrics info = [];
+        //private ProfilingInfoMetrics info = [];
         private readonly int queryIndex;
+
+        private Dictionary<string, string> rawMetrics = new();
+
 
         internal StatementProfiler(int queryIndex, DuckDBNativeConnection duckDBNativeConnection): base(duckDBNativeConnection)
         {
@@ -24,7 +27,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         internal DateTimeOffset StartTime => startExecutionTime;
         internal DateTimeOffset EndTime => endExecutionTime;
 
-        internal ProfilingInfoMetrics Info => info;
+        internal ProfilingInfoMetrics Info => ProfilingInfoMetrics.FromRawMetrics(rawMetrics);
 
         internal int QueryIndex => queryIndex;
 
@@ -35,7 +38,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
                 EndTime: endExecutionTime,
                 ExecutionTimeMilliseconds: TimerUtils.TimerToMilliseconds(executionTime),
                 Order: queryIndex,
-                Metrics: info);
+                Metrics: Info);
         }
 
         internal override void StartTimer()
@@ -43,7 +46,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
             if (!startExecutionTimestamp.HasValue)
             {
                 startExecutionTimestamp = TimerUtils.TimerCurrent();
-                startExecutionTime = TimerUtils.Now();
+                startExecutionTime = new DateTimeOffset(startExecutionTimestamp.Value, TimeSpan.Zero);
             }
         }
 
@@ -56,7 +59,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         {
             if (startExecutionTimestamp.HasValue)
             {
-                uint elapsed = TimerUtils.CalculateTickCountElapsed(startExecutionTimestamp.Value, TimerUtils.TimerCurrent());
+                long elapsed = TimerUtils.CalculateTickCountElapsed(startExecutionTimestamp.Value, TimerUtils.TimerCurrent());
                 executionTime += elapsed;
                 endExecutionTime = startExecutionTime.AddTicks(elapsed);
 
@@ -70,7 +73,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
 
             if (profile.TryPrepare())
             {
-                info = profile.GetMetrics();
+                rawMetrics = profile.GetRawMetrics();
             }
         }
 
