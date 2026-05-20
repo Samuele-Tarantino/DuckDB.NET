@@ -2,24 +2,16 @@
 
 namespace DuckDB.NET.Data.Profiling.Statistics
 {
-    internal sealed class QueryProfiler : ExecutionStatisticsBase
+    internal sealed class QueryProfiler(IntPtr queryIdentifier, int statementCount, DuckDBNativeConnection connection)
+    : ExecutionProfiler(connection)
     {
-        // internal values that are not exposed through properties
-        internal long? startExecutionTimestamp;
-        private readonly StatementProfiler[] statementProfilers;
+        private readonly StatementProfiler[] statementProfilers = new StatementProfiler[statementCount];
 
-        // internal values that are exposed through properties
+        internal long? startExecutionTimestamp;
         internal long executionTime;
         internal DateTimeOffset startExecutionTime;
         internal DateTimeOffset endExecutionTime;
-        private readonly IntPtr queryIdentifier;
-        private readonly int statementCount;
 
-        internal QueryProfiler(IntPtr queryIdentifier, int statementCount, DuckDBNativeConnection duckDBNativeConnection) : base(duckDBNativeConnection)
-        {
-            this.statementCount = statementCount;
-            this.statementProfilers = new StatementProfiler[statementCount];
-        }
 
         internal long ExecutionTime => TimerUtils.TimerToMilliseconds(executionTime);
         internal DateTimeOffset StartTime => startExecutionTime;
@@ -28,6 +20,12 @@ namespace DuckDB.NET.Data.Profiling.Statistics
 
         internal IntPtr QueryIdentifier => queryIdentifier;
 
+        internal StatementProfiler CreateStatementProfiler(int index)
+        {
+            var profiler = new StatementProfiler(index, duckDBNativeConnection);
+            statementProfilers[index] = profiler;
+            return profiler;
+        }
 
         internal bool RegisterStatementProfiler(StatementProfiler statistics, int queryIndex)
         {
@@ -69,7 +67,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
                  [.. GetStatementInfo()]);
         }
 
-        internal override void StartTimer()
+        public override void StartTimer()
         {
             if (!startExecutionTimestamp.HasValue)
             {
@@ -78,18 +76,12 @@ namespace DuckDB.NET.Data.Profiling.Statistics
             }
         }
 
-        internal override void StopTimer()
+        public override void StopTimer()
         {
             ReleaseAndUpdateExecutionTimer();
         }
 
-        internal override void SetState(DuckDBState state, string message)
-        {
-            this.state = state;
-            this.errorMessage = message;
-        }
-
-        internal override void Reset()
+        public override void Reset()
         {
             executionTime = 0;
             startExecutionTimestamp = null;

@@ -87,7 +87,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         /// <param name="queryIdentifier">A pointer that uniquely identifies the query for which the profiler tracer is created.</param>
         /// <param name="statementCount">The number of statements in the query to be profiled. Must be non-negative.</param>
         /// <returns>A new instance of <see cref="QueryProfilerTracer"/> if query execution tracing is enabled; otherwise, <see langword="null"/>.</returns>
-        internal QueryProfilerTracer? CreateQueryProfilerTracer(IntPtr queryIdentifier, int statementCount)
+        internal QueryProfiler? CreateQueryProfiler(IntPtr queryIdentifier, int statementCount)
         {
             if (!enableQueryExecutionTracing)
             {
@@ -95,11 +95,8 @@ namespace DuckDB.NET.Data.Profiling.Statistics
             }
 
             var queryProfiler = new QueryProfiler(queryIdentifier, statementCount, duckDBNativeConnection);
-            var tracer = new QueryProfilerTracer(queryProfiler, duckDBNativeConnection);
-
             queryProfilers[queryIdentifier] = queryProfiler;
-
-            return tracer;
+            return queryProfiler;
         }
 
         internal void UpdateStatistics()
