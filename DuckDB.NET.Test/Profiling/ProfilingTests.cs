@@ -36,11 +36,11 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             // If no new summaries were produced, profiling might not be available in this environment.
             var newSummaries = summary.QuerySummaryList.Skip(beforeCount).ToArray();
             newSummaries.Length.Should().BeGreaterThan(0, "Expected new query summaries after executing batch");
-            var last = newSummaries.Last();
+            var last = newSummaries.Last().Infos;
 
             // check that enabled metrics appear in at least one statement's metrics
-            var containsQueryName = last.Infos.Any(i => i != null && i.ContainsKey(DuckDBMetricType.QueryName));
-            var containsCpuTime = last.Infos.Any(i => i != null && i.ContainsKey(DuckDBMetricType.CpuTime));
+            var containsQueryName = last.Any(i => i.Metrics.ContainsKey(DuckDBMetricType.QueryName));
+            var containsCpuTime = last.Any(i => i.Metrics.ContainsKey(DuckDBMetricType.CpuTime));
 
             containsQueryName.Should().BeTrue();
             containsCpuTime.Should().BeTrue();
@@ -190,8 +190,8 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
                 var last1 = s1.QuerySummaryList.Last();
                 var last2 = s2.QuerySummaryList.Last();
 
-                var keys1 = new HashSet<DuckDBMetricType>(last1.Infos.Where(i => i != null).SelectMany(i => i.Keys));
-                var keys2 = new HashSet<DuckDBMetricType>(last2.Infos.Where(i => i != null).SelectMany(i => i.Keys));
+                var keys1 = new HashSet<DuckDBMetricType>(last1.Infos.SelectMany(i => i.Metrics.Keys));
+                var keys2 = new HashSet<DuckDBMetricType>(last2.Infos.SelectMany(i => i.Metrics.Keys));
 
                 // strict check: both sets of metric keys must match
                 keys1.Should().BeEquivalentTo(keys2);
@@ -240,8 +240,8 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             var lastOriginal = sOriginal.QuerySummaryList.Last();
             var lastDup = sDup.QuerySummaryList.Last();
 
-            var keysOrig = new HashSet<DuckDBMetricType>(lastOriginal.Infos.Where(i => i != null).SelectMany(i => i.Keys));
-            var keysDup = new HashSet<DuckDBMetricType>(lastDup.Infos.Where(i => i != null).SelectMany(i => i.Keys));
+            var keysOrig = new HashSet<DuckDBMetricType>(lastOriginal.Infos.SelectMany(i => i.Metrics.Keys));
+            var keysDup = new HashSet<DuckDBMetricType>(lastDup.Infos.SelectMany(i => i.Metrics.Keys));
 
             // strict check: both sets of metric keys must match
             keysOrig.Should().BeEquivalentTo(keysDup);
@@ -290,7 +290,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             last.Infos.Length.Should().BeGreaterThan(0, "Expected some profiling info when metrics are enabled");
 
             // ensure at least one statement collected all requested metrics
-            bool found = last.Infos.Any(info => info != null && metricsToEnable.All(m => info.ContainsKey(m)));
+            bool found = last.Infos.Any(summary => metricsToEnable.All(m => summary.Metrics.ContainsKey(m)));
 
             found.Should().BeTrue("At least one statement should include all the enabled metrics (QueryName, CpuTime, Latency, TotalBytesRead)");
         }
@@ -357,7 +357,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             {
                 for (int i = 0; i < last.StatementCount; i++)
                 {
-                    var info = i < last.Infos.Length ? last.Infos[i] : null;
+                    var info = i < last.Infos.Length ? last.Infos[i].Metrics : null;
                     if (i == selectPosition)
                     {
                         info.Should().NotBeNull();
@@ -372,8 +372,8 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             }
             else
             {
-                // If Infos length doesn't map 1:1 to statements, at least ensure exactly one statement collected metrics
-                var nonEmpty = last.Infos.Count(i => i != null && i.Count > 0);
+                // If Metrics length doesn't map 1:1 to statements, at least ensure exactly one statement collected metrics
+                var nonEmpty = last.Infos.Count(i => i.Metrics.Count > 0);
                 nonEmpty.Should().Be(1, "Expected exactly one statement to have metrics when coverage=Select");
             }
         }
@@ -504,7 +504,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             {
                 for (int i = 0; i < last.StatementCount; i++)
                 {
-                    var info = i < last.Infos.Length ? last.Infos[i] : null;
+                    var info = i < last.Infos.Length ? last.Infos[i].Metrics : null;
                     if (i == last.StatementCount - 1)
                     {
                         info.Should().NotBeNull();
@@ -519,7 +519,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             }
             else
             {
-                var nonEmpty = last.Infos.Count(i => i != null && i.Count > 0);
+                var nonEmpty = last.Infos.Count(i => i.Metrics.Count > 0);
                 nonEmpty.Should().Be(1, "Expected exactly one statement to have metrics when coverage=Select");
             }
         }

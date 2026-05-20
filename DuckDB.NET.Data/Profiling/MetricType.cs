@@ -13,7 +13,7 @@ namespace DuckDB.NET.Data.Profiling
             DuckDBMetricType.CpuTime,
             DuckDBMetricType.BlockedThreadTime,
             DuckDBMetricType.ResultSetSize,
-            DuckDBMetricType.RowsReturned,
+            //DuckDBMetricType.RowsReturned,
             DuckDBMetricType.CumulativeRowsScanned,
             DuckDBMetricType.TotalBytesRead,
             DuckDBMetricType.TotalBytesWritten,

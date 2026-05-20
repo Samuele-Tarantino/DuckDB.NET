@@ -21,9 +21,13 @@ namespace DuckDB.NET.Data.Profiling.Statistics
             this.statementProfilers = new StatementProfiler[statementCount];
         }
 
+        internal long ExecutionTime => TimerUtils.TimerToMilliseconds(executionTime);
+        internal DateTimeOffset StartTime => startExecutionTime;
+        internal DateTimeOffset EndTime => endExecutionTime;
+        internal int StatementCount => statementCount;
+
         internal IntPtr QueryIdentifier => queryIdentifier;
 
-        internal int StatementCount => statementCount;
 
         internal bool RegisterStatementProfiler(StatementProfiler statistics, int queryIndex)
         {
@@ -47,15 +51,15 @@ namespace DuckDB.NET.Data.Profiling.Statistics
             }
         }
 
-        private IEnumerable<ProfilingInfoMetrics> GetStatementInfo()
+        private IEnumerable<ProfilingStatementSummary> GetStatementInfo()
         {
             foreach (var statementProfiler in statementProfilers)
             {
-                yield return statementProfiler?.Info ?? [];
+                yield return statementProfiler.GetSummary();
             }
         }
 
-        internal ProfilingQuerySummary GetQuerySummary()
+        internal ProfilingQuerySummary GetSummary()
         {
             return new ProfilingQuerySummary(
                  startExecutionTime,

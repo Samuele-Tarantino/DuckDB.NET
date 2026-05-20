@@ -12,17 +12,31 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         internal long executionTime;
         internal DateTimeOffset startExecutionTime;
         internal DateTimeOffset endExecutionTime;
-        private ProfilingInfoMetrics info;
-        private readonly DuckDBPreparedStatement preparedStatement;
+        private ProfilingInfoMetrics info = [];
         private readonly int queryIndex;
 
-        internal StatementProfiler(DuckDBPreparedStatement preparedStatement, int queryIndex, DuckDBNativeConnection duckDBNativeConnection): base(duckDBNativeConnection)
+        internal StatementProfiler(int queryIndex, DuckDBNativeConnection duckDBNativeConnection): base(duckDBNativeConnection)
         {
-            this.preparedStatement = preparedStatement;
             this.queryIndex = queryIndex;
         }
 
-        public ProfilingInfoMetrics Info => info;
+        internal long ExecutionTime => TimerUtils.TimerToMilliseconds(executionTime);
+        internal DateTimeOffset StartTime => startExecutionTime;
+        internal DateTimeOffset EndTime => endExecutionTime;
+
+        internal ProfilingInfoMetrics Info => info;
+
+        internal int QueryIndex => queryIndex;
+
+        internal ProfilingStatementSummary GetSummary()
+        {
+            return new ProfilingStatementSummary(
+                StartTime: startExecutionTime,
+                EndTime: endExecutionTime,
+                ExecutionTimeMilliseconds: TimerUtils.TimerToMilliseconds(executionTime),
+                Order: queryIndex,
+                Metrics: info);
+        }
 
         internal override void StartTimer()
         {

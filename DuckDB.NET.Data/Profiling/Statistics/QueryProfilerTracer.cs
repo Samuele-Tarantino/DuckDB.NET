@@ -19,7 +19,7 @@
                 throw new InvalidOperationException("Statement profiler tracer already exists for the given prepared statement.");
             }
 
-            var statementProfiler = new StatementProfiler(preparedStatement, statementIndex, duckDBNativeConnection);
+            var statementProfiler = new StatementProfiler(statementIndex, duckDBNativeConnection);
             statementTracers[preparedStatement] = new StatementProfilerTracer(statementProfiler);
 
             queryProfiler.RegisterStatementProfiler(statementProfiler, statementIndex);

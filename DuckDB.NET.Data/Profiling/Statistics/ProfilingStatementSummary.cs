@@ -1,11 +1,11 @@
 namespace DuckDB.NET.Data.Profiling.Statistics;
 
-public readonly record struct ProfilingQuerySummary(
+public readonly record struct ProfilingStatementSummary(
     DateTimeOffset StartTime,
     DateTimeOffset EndTime,
     double ExecutionTimeMilliseconds,
-    int StatementCount,
-    ProfilingStatementSummary[] Infos)
+    int Order,
+    ProfilingInfoMetrics Metrics)
 {
     public IDictionary<string, object> ToDictionary()
     {
@@ -14,8 +14,8 @@ public readonly record struct ProfilingQuerySummary(
             ["StartTime"] = StartTime,
             ["EndTime"] = EndTime,
             ["ExecutionTime"] = ExecutionTimeMilliseconds,
-            ["StatementCount"] = StatementCount,
-            ["Infos"] = Infos
+            ["Order"] = Order,
+            ["Infos"] = Metrics
         };
     }
 }

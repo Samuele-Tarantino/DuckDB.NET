@@ -100,12 +100,13 @@ Current version:
 Set explicit version:
 
 ```powershell
-.\scripts\irion-package.ps1 -Command set -Version 1.4.4.2
+.\scripts\irion-package.ps1 -Command set -Version 1.5.2-alpha.1
 ```
 
 Bump version in `build/irion.version`:
 
 ```powershell
+.\scripts\irion-package.ps1 -Command bump -Part prerelease # 1.4.4-alpha.1 -> 1.4.4-alpha.2
 .\scripts\irion-package.ps1 -Command bump -Part revision  # 1.4.4.1 -> 1.4.4.2
 .\scripts\irion-package.ps1 -Command bump -Part build     # 1.4.4.1 -> 1.4.5.0
 .\scripts\irion-package.ps1 -Command bump -Part minor     # 1.4.4.1 -> 1.5.0.0

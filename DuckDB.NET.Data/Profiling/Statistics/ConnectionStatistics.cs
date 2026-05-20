@@ -111,7 +111,7 @@ namespace DuckDB.NET.Data.Profiling.Statistics
         {
             foreach (var queryProfiler in queryProfilers.Values)
             {
-                yield return queryProfiler.GetQuerySummary();
+                yield return queryProfiler.GetSummary();
             }
         }
 
