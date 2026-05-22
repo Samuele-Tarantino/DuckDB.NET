@@ -1,5 +1,6 @@
 ﻿using DuckDB.NET.Data.Common;
 using DuckDB.NET.Data.PreparedStatement;
+using DuckDB.NET.Data.Profiling.Statistics.Summary;
 using System.Collections.Concurrent;
 using System.Linq;
 

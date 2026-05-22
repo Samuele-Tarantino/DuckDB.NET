@@ -2,6 +2,7 @@
 using DuckDB.NET.Data.Connection;
 using DuckDB.NET.Data.Profiling;
 using DuckDB.NET.Data.Profiling.Statistics;
+using DuckDB.NET.Data.Profiling.Statistics.Summary;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;

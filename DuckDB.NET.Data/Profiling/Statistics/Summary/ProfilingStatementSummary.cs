@@ -1,4 +1,4 @@
-namespace DuckDB.NET.Data.Profiling.Statistics;
+namespace DuckDB.NET.Data.Profiling.Statistics.Summary;
 
 public readonly record struct ProfilingStatementSummary(
     DateTimeOffset StartTime,

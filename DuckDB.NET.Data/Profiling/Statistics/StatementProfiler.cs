@@ -1,4 +1,5 @@
 ﻿using DuckDB.NET.Data.Common;
+using DuckDB.NET.Data.Profiling.Statistics.Summary;
 using System.Diagnostics;
 
 namespace DuckDB.NET.Data.Profiling.Statistics

@@ -2,6 +2,7 @@
 using DuckDB.NET.Data;
 using DuckDB.NET.Data.Profiling;
 using DuckDB.NET.Data.Profiling.Statistics;
+using DuckDB.NET.Data.Profiling.Statistics.Summary;
 using DuckDB.NET.Native;
 using DuckDB.NET.Test.Helpers;
 using System;
