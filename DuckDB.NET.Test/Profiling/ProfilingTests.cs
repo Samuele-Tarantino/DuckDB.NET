@@ -52,6 +52,61 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
     }
 
     [Fact]
+    public void EnableProfilingWithoutOptionsUsesDefaults()
+    {
+        // enable profiling with explicit empty options - should use defaults
+        var defaultMetrics = DuckDBMetrics.DefaultMetrics.ToList();
+        _ = defaultMetrics.Remove(DuckDBMetricType.QueryName);
+        var options = new ProfilingOptions { Coverage = DuckDBProfilingCoverage.All, EnabledMetrics = new DuckDBMetricTypeCollection(defaultMetrics) };
+
+        var con = new DuckDBConnection("data source=:memory:");
+        con.Open();
+
+        con.EnableProfiling(options);
+
+        using var cmd = con.CreateCommand();
+
+        try
+        {
+            // ensure clean start
+            con.ResetStatistics();
+
+            // run a simple query to produce profiling data
+            cmd.CommandText = "SELECT 1;";
+            using (var r = cmd.ExecuteReader()) { }
+
+            // profiling should be enabled
+            con.ProfilingEnabled.Should().BeTrue();
+
+            var summary = con.RetrieveStatistics();
+            summary.QueryCount.Should().BeGreaterThan(0);
+
+
+            // enable profiling without passing any options - should reset to defaults if already enabled
+            con.EnableProfiling();
+
+            con.ResetStatistics();
+
+            cmd.CommandText = "SET user = 'test';";
+            using (var r = cmd.ExecuteReader()) { }
+
+            // profiling should be enabled
+            con.ProfilingEnabled.Should().BeTrue();
+
+            summary = con.RetrieveStatistics();
+            summary.QueryCount.Should().BeGreaterThan(0);
+
+            // with default options, there should be no metrics collected for Set statements
+            summary.QuerySummaryList.Last().Infos.Length.Should().Be(1);
+            summary.QuerySummaryList.Last().Infos[0].Metrics.Count.Should().Be(0);
+        }
+        finally
+        {
+            con.DisableProfiling(true);
+        }
+    }
+
+    [Fact]
     public async Task FileBackedConnectionSharesProfilingStateWhenEnabledOnFirst()
     {
         // create a physical file-backed database

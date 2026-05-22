@@ -485,9 +485,29 @@ public partial class DuckDBConnection : DbConnection
             var metrics = options.EnabledMetrics ?? new DuckDBMetricTypeCollection(DuckDBMetrics.DefaultMetrics);
             sb.Append($"SET custom_profiling_settings = '{metrics.ToDuckDBMetricString()}';");
 
-            var state = NativeMethods.Query.DuckDBQuery(NativeConnection, sb.ToString(), out _);
+            var state = NativeMethods.Query.DuckDBQuery(NativeConnection, sb.ToString(), out var queryResult);
             if (!state.IsSuccess())
-                throw new DuckDBException("Error configuring profiling settings.");
+            {
+                var errorMessage = NativeMethods.Query.DuckDBResultError(ref queryResult);
+                var errorType = NativeMethods.Query.DuckDBResultErrorType(ref queryResult);
+                queryResult.Close();
+
+                if (string.IsNullOrEmpty(errorMessage))
+                {
+                    errorMessage = "Error configuring profiling settings";
+                }
+
+                if (errorType == DuckDBErrorType.Interrupt)
+                {
+                    throw new OperationCanceledException();
+                }
+
+                var innerException = UdfExceptionStore.Retrieve(NativeConnection);
+                throw innerException != null
+                    ? new DuckDBException(errorMessage, innerException)
+                    : new DuckDBException(errorMessage, errorType);
+            }
+            queryResult.Close();
         }
     }
 
