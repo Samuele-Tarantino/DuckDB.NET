@@ -1,10 +1,99 @@
 ﻿using DuckDB.NET.Data.Profiling;
 using DuckDB.NET.Test.Helpers;
+using DuckDB.NET.Native;
 
 namespace DuckDB.NET.Test.Profiling;
 
 public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
 {
+
+        [Fact]
+        public void ProfilingSummariesContainCorrectStateAndMessageOnSuccess()
+        {
+            var options = new ProfilingOptions
+            {
+                Coverage = DuckDBProfilingCoverage.All,
+                EnabledMetrics = new DuckDBMetricTypeCollection(),
+                Format = DuckDBProfilingFormat.Json,
+                Mode = DuckDBProfilingMode.Standard
+            };
+
+            Connection.EnableProfiling(options);
+
+            try
+            {
+                Connection.ResetStatistics();
+
+                Command.CommandText = "SELECT 1;";
+                using (var r = Command.ExecuteReader()) { }
+
+                var summary = Connection.RetrieveStatistics();
+                summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
+
+                var last = summary.QuerySummaryList.Last();
+                // Expect overall query to be successful
+                last.State.Should().Be(DuckDBState.Success);
+                last.Message.Should().BeNullOrEmpty();
+
+                // Expect constituent statements to be successful as well
+                if (last.Infos.Length > 0)
+                {
+                    var stmt = last.Infos.Last();
+                    stmt.State.Should().Be(DuckDBState.Success);
+                    stmt.Message.Should().BeNullOrEmpty();
+                }
+            }
+            finally
+            {
+                Connection.DisableProfiling();
+            }
+        }
+
+        [Fact]
+        public void ProfilingSummariesContainCorrectStateAndMessageOnError()
+        {
+            var options = new ProfilingOptions
+            {
+                Coverage = DuckDBProfilingCoverage.All,
+                EnabledMetrics = new DuckDBMetricTypeCollection(),
+                Format = DuckDBProfilingFormat.Json,
+                Mode = DuckDBProfilingMode.Standard
+            };
+
+            Connection.EnableProfiling(options);
+
+            try
+            {
+                Connection.ResetStatistics();
+
+                // Execute a statement that will error
+                Command.CommandText = "SELECT * FROM __this_table_does_not_exist__";
+                try
+                {
+                    using (var r = Command.ExecuteReader()) { }
+                }
+                catch (Exception)
+                {
+                    // swallow - we expect an error to be thrown by the command execution
+                }
+
+                var summary = Connection.RetrieveStatistics();
+                summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
+
+                var last = summary.QuerySummaryList.Last();
+                // Overall query should be marked as error
+                last.State.Should().Be(DuckDBState.Error);
+                last.Message.Should().NotBeNullOrWhiteSpace();
+
+                // Ensure at least one statement reports error state/message
+                var anyError = last.Infos.Any(i => i.State == DuckDBState.Error && !string.IsNullOrWhiteSpace(i.Message));
+                anyError.Should().BeTrue("At least one statement should report an error state and message");
+            }
+            finally
+            {
+                Connection.DisableProfiling();
+            }
+        }
 
     [Fact]
     public void MetricsDictionaryContainsEnabledMetrics()

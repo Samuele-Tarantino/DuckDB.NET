@@ -5,7 +5,9 @@ public readonly record struct ProfilingQuerySummary(
     DateTimeOffset EndTime,
     double ExecutionTimeMilliseconds,
     int StatementCount,
-    ProfilingStatementSummary[] Infos)
+    ProfilingStatementSummary[] Infos,
+    DuckDBState State,
+    string Message)
 {
     public IDictionary<string, object> ToDictionary()
     {
@@ -15,7 +17,9 @@ public readonly record struct ProfilingQuerySummary(
             ["EndTime"] = EndTime,
             ["ExecutionTime"] = ExecutionTimeMilliseconds,
             ["StatementCount"] = StatementCount,
-            ["Infos"] = Infos
+            ["Infos"] = Infos,
+            ["State"] = State,
+            ["Message"] = Message
         };
     }
 }

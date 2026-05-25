@@ -1,80 +1,52 @@
 ﻿using DuckDB.NET.Data.Common;
 using DuckDB.NET.Data.Profiling.Statistics.Summary;
-using System.Diagnostics;
 
-namespace DuckDB.NET.Data.Profiling.Statistics
+namespace DuckDB.NET.Data.Profiling.Statistics;
+
+internal sealed class StatementProfiler(int queryIndex, DuckDBNativeConnection connection)
+: ExecutionProfiler(connection)
 {
-    internal sealed class StatementProfiler(int queryIndex, DuckDBNativeConnection connection)
-    : ExecutionProfiler(connection)
+    private Dictionary<string, string> rawMetrics = [];
+
+    /// <summary>
+    /// Gets the profiling metrics associated with the current operation.
+    /// </summary>
+    internal ProfilingInfoMetrics Info => ProfilingInfoMetrics.FromRawMetrics(rawMetrics);
+
+    /// <summary>
+    /// Creates a summary of the profiling statement, including execution timing, order, metrics, state, and any associated
+    /// message.
+    /// </summary>
+    /// <returns>A <see cref="ProfilingStatementSummary"/> instance containing the collected profiling data for the statement.</returns>
+    internal ProfilingStatementSummary GetSummary()
     {
-        private Dictionary<string, string> rawMetrics = new();
+        return new ProfilingStatementSummary(
+            StartTime: startExecutionTime,
+            EndTime: endExecutionTime,
+            ExecutionTimeMilliseconds: TimerUtils.TimerToMilliseconds(executionTime),
+            Order: queryIndex,
+            Metrics: Info,
+            State: state,
+            Message: ErrorMessage);
+    }
 
-        internal long? startExecutionTimestamp;
-        internal long executionTime;
-        internal DateTimeOffset startExecutionTime;
-        internal DateTimeOffset endExecutionTime;
+    /// <inheritdoc/>
+    public override void AcquireMetrics()
+    {
+        var profile = new ProfilingInfo(duckDBNativeConnection);
 
-
-        internal long ExecutionTime => TimerUtils.TimerToMilliseconds(executionTime);
-        internal DateTimeOffset StartTime => startExecutionTime;
-        internal DateTimeOffset EndTime => endExecutionTime;
-
-        internal int QueryIndex => queryIndex;
-        internal ProfilingInfoMetrics Info => ProfilingInfoMetrics.FromRawMetrics(rawMetrics);
-
-
-        internal ProfilingStatementSummary GetSummary()
+        if (profile.TryPrepare())
         {
-            return new ProfilingStatementSummary(
-                StartTime: startExecutionTime,
-                EndTime: endExecutionTime,
-                ExecutionTimeMilliseconds: TimerUtils.TimerToMilliseconds(executionTime),
-                Order: queryIndex,
-                Metrics: Info);
+            rawMetrics = profile.GetRawMetrics();
         }
+    }
 
-        public override void StartTimer()
-        {
-            if (!startExecutionTimestamp.HasValue)
-            {
-                startExecutionTimestamp = TimerUtils.TimerCurrent();
-                startExecutionTime = new DateTimeOffset(startExecutionTimestamp.Value, TimeSpan.Zero);
-            }
-        }
-
-        public override void StopTimer()
-        {
-            ReleaseAndUpdateExecutionTimer();
-        }
-
-        internal void ReleaseAndUpdateExecutionTimer()
-        {
-            if (startExecutionTimestamp.HasValue)
-            {
-                long elapsed = TimerUtils.CalculateTickCountElapsed(startExecutionTimestamp.Value, TimerUtils.TimerCurrent());
-                executionTime += elapsed;
-                endExecutionTime = startExecutionTime.AddTicks(elapsed);
-
-                startExecutionTimestamp = null;
-            }
-        }
-
-        public override void AcquireMetrics()
-        {
-            var profile = new ProfilingInfo(duckDBNativeConnection);
-
-            if (profile.TryPrepare())
-            {
-                rawMetrics = profile.GetRawMetrics();
-            }
-        }
-
-        public override void Reset()
-        {
-            executionTime = 0;
-            startExecutionTimestamp = null;
-            startExecutionTime = default;
-            endExecutionTime = default;
-        }
+    /// <inheritdoc/>
+    public override void Reset()
+    {
+        executionTime = 0;
+        startExecutionTimestamp = null;
+        startExecutionTime = default;
+        endExecutionTime = default;
     }
 }

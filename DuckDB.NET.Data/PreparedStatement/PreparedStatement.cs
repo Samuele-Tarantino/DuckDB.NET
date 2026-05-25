@@ -30,6 +30,7 @@ internal sealed class PreparedStatement : IDisposable
                 var error = NativeMethods.ExtractStatements.DuckDBExtractStatementsError(extractedStatements);
 
                 queryProfiler?.SetState(DuckDBState.Error, DuckDBErrorType.Parser, error);
+                queryProfiler?.StopTimer();
 
                 throw new DuckDBException(error);
             }
@@ -69,7 +70,7 @@ internal sealed class PreparedStatement : IDisposable
                     // Initialize the statement profiler for the current statement. This allows for detailed profiling of each individual statement within the batch
 
                     statementProfiler?.SetState(status, errorMessage);
-                    statementProfiler?.StopTimer();
+                    queryProfiler?.StopTimer(index);
 
                     throw new DuckDBException(errorMessage, UdfExceptionStore.Retrieve(connection));
                 }
@@ -86,7 +87,6 @@ internal sealed class PreparedStatement : IDisposable
 
         try
         {
-
 
             BindParameters(statement, parameterCollection);
 
