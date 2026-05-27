@@ -18,6 +18,7 @@ internal sealed class ConnectionStatistics : IDisposable
     internal long? startExecutionTimestamp;
     private bool enableQueryExecutionTracing;
     private readonly DuckDBNativeConnection duckDBNativeConnection;
+    private readonly ProfilingOptions? profilingOptions;
     private readonly ConcurrentDictionary<IntPtr, QueryProfiler> queryProfilers = new();
     private bool isDisposed = false;
 
@@ -32,10 +33,12 @@ internal sealed class ConnectionStatistics : IDisposable
     /// </summary>
     /// <param name="duckDBNativeConnection">The native DuckDB connection.</param>
     /// <param name="enableQueryExecutionTracing">Indicates whether query execution tracing is enabled.</param>
-    internal ConnectionStatistics(DuckDBNativeConnection duckDBNativeConnection, bool enableQueryExecutionTracing = false)
+    /// <param name="profilingOptions">The profiling options for the connection.</param>
+    internal ConnectionStatistics(DuckDBNativeConnection duckDBNativeConnection, bool enableQueryExecutionTracing = false, ProfilingOptions? profilingOptions = default)
     {
         this.enableQueryExecutionTracing = enableQueryExecutionTracing;
         this.duckDBNativeConnection = duckDBNativeConnection;
+        this.profilingOptions = profilingOptions;
 
         // Add or update the mapping for the native connection to this ConnectionStatistics instance
         ByNativeConnection.AddOrUpdate(duckDBNativeConnection, this, (_, _) => this);
@@ -94,7 +97,7 @@ internal sealed class ConnectionStatistics : IDisposable
             return null;
         }
 
-        var queryProfiler = new QueryProfiler(queryIdentifier, statementCount, duckDBNativeConnection);
+        var queryProfiler = new QueryProfiler(queryIdentifier, statementCount, duckDBNativeConnection, profilingOptions);
         queryProfilers[queryIdentifier] = queryProfiler;
         return queryProfiler;
     }

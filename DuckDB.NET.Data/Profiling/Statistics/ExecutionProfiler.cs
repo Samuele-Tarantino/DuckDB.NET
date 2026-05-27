@@ -2,9 +2,11 @@
 
 namespace DuckDB.NET.Data.Profiling.Statistics;
 
-internal abstract class ExecutionProfiler(DuckDBNativeConnection duckDBNativeConnection) : IExecutionProfiler
+internal abstract class ExecutionProfiler(DuckDBNativeConnection duckDBNativeConnection, ProfilingOptions? profilingOptions) : IExecutionProfiler
 {
     protected readonly DuckDBNativeConnection duckDBNativeConnection = duckDBNativeConnection;
+    protected readonly ProfilingOptions? profilingOptions = profilingOptions;
+
     protected DuckDBState state;
     protected string? errorMessage;
 

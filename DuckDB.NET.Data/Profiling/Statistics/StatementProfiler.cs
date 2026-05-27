@@ -3,8 +3,8 @@ using DuckDB.NET.Data.Profiling.Statistics.Summary;
 
 namespace DuckDB.NET.Data.Profiling.Statistics;
 
-internal sealed class StatementProfiler(int queryIndex, DuckDBNativeConnection connection)
-: ExecutionProfiler(connection)
+internal sealed class StatementProfiler(int queryIndex, DuckDBNativeConnection connection, ProfilingOptions? profilingOptions)
+: ExecutionProfiler(connection, profilingOptions)
 {
     private Dictionary<string, string> rawMetrics = [];
 
@@ -33,6 +33,11 @@ internal sealed class StatementProfiler(int queryIndex, DuckDBNativeConnection c
     /// <inheritdoc/>
     public override void AcquireMetrics()
     {
+        long elapsed = TimerUtils.CalculateTickCountElapsed(startExecutionTimestamp ?? 0, TimerUtils.TimerCurrent());
+
+        if (TimerUtils.TimerToMilliseconds(elapsed) < (profilingOptions?.MetricsThresholdMS ?? 0))
+            return;
+
         var profile = new ProfilingInfo(duckDBNativeConnection);
 
         if (profile.TryPrepare())

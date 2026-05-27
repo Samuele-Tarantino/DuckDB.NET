@@ -49,6 +49,81 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             }
         }
 
+    [Fact]
+    public void MetricsCollectedWhenOverMetricsThreshold()
+    {
+        var options = new ProfilingOptions
+        {
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName, DuckDBMetricType.CpuTime },
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard,
+            MetricsThresholdMS = 1 // very small threshold so a heavy query will exceed it
+        };
+
+        Connection.EnableProfiling(options);
+
+        try
+        {
+            Connection.ResetStatistics();
+
+            // run a heavier query to exceed the threshold
+            // use DuckDB's range table function with a single argument (0..n-1)
+            Command.CommandText = "SELECT SUM(i) FROM range(1000000) AS t(i);";
+            using (var r = Command.ExecuteReader()) { }
+
+            var summary = Connection.RetrieveStatistics();
+            summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
+
+            var last = summary.QuerySummaryList.Last();
+            last.Infos.Should().NotBeNull();
+
+            // When execution is over the metrics threshold, at least one statement should contain enabled metrics
+            var hasMetrics = last.Infos.Any(i => i.Metrics.ContainsKey(DuckDBMetricType.QueryName) || i.Metrics.ContainsKey(DuckDBMetricType.CpuTime));
+            hasMetrics.Should().BeTrue("Metrics should be collected when execution time exceeds MetricsThresholdMS");
+        }
+        finally
+        {
+            Connection.DisableProfiling();
+        }
+    }
+
+    [Fact]
+    public void MetricsNotCollectedWhenUnderMetricsThreshold()
+    {
+        var options = new ProfilingOptions
+        {
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard,
+            MetricsThresholdMS = 10000 // high threshold to prevent metrics collection for a short query
+        };
+
+        Connection.EnableProfiling(options);
+
+        try
+        {
+            Connection.ResetStatistics();
+
+            Command.CommandText = "SELECT 1;";
+            using (var r = Command.ExecuteReader()) { }
+
+            var summary = Connection.RetrieveStatistics();
+            summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
+
+            var last = summary.QuerySummaryList.Last();
+            last.Infos.Should().NotBeNull();
+
+            // When execution is under the metrics threshold, no metrics should be extracted
+            last.Infos.All(i => i.Metrics.Count == 0).Should().BeTrue("Metrics should not be collected when execution time is below the configured MetricsThresholdMS");
+        }
+        finally
+        {
+            Connection.DisableProfiling();
+        }
+    }
+
         [Fact]
         public void ProfilingSummariesContainCorrectStateAndMessageOnError()
         {

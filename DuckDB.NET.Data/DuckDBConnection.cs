@@ -416,7 +416,7 @@ public partial class DuckDBConnection : DbConnection
 
         if (ProfilingEnabled)
         {
-            profilingInfo = new ConnectionStatistics(NativeConnection, isProfilingEnabled);
+            profilingInfo = new ConnectionStatistics(NativeConnection, isProfilingEnabled, this.profilingOptions);
             LoadStatisticsProfile();
         }
     }
