@@ -33,10 +33,14 @@ internal sealed class StatementProfiler(int queryIndex, DuckDBNativeConnection c
     /// <inheritdoc/>
     public override void AcquireMetrics()
     {
-        long elapsed = TimerUtils.CalculateTickCountElapsed(startExecutionTimestamp ?? 0, TimerUtils.TimerCurrent());
+        // If a metrics threshold is set, check if the elapsed execution time meets the threshold before acquiring metrics.
+        if ((profilingOptions?.MetricsThresholdMS ?? 0) > 0)
+        {
+            long elapsed = TimerUtils.CalculateTickCountElapsed(startExecutionTimestamp ?? 0, TimerUtils.TimerCurrent());
 
-        if (TimerUtils.TimerToMilliseconds(elapsed) < (profilingOptions?.MetricsThresholdMS ?? 0))
-            return;
+            if (TimerUtils.TimerToMilliseconds(elapsed) < (profilingOptions?.MetricsThresholdMS ?? 0))
+                return;
+        }
 
         var profile = new ProfilingInfo(duckDBNativeConnection);
 
