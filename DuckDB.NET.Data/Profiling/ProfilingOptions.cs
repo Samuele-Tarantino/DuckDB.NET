@@ -30,6 +30,6 @@
         /// <summary>
         /// The threshold value used for metrics acquisition, in milliseconds.
         /// </summary>
-        public int MetricsThresholdMS { get; init; } = 0;
+        public int MetricsThresholdMS { get; init; }
     }
 }
