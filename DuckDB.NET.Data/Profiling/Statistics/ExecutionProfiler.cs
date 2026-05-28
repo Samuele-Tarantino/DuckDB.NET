@@ -10,24 +10,24 @@ internal abstract class ExecutionProfiler(DuckDBNativeConnection duckDBNativeCon
     protected DuckDBState state;
     protected string? errorMessage;
 
-    protected long? startExecutionTimestamp;
+    protected long? startTimestamp;
     protected long executionTime;
-    protected DateTimeOffset startExecutionTime;
-    protected DateTimeOffset endExecutionTime;
+    protected DateTimeOffset startTime;
+    protected DateTimeOffset endTime;
 
     internal long ExecutionTime => TimerUtils.TimerToMilliseconds(executionTime);
-    internal DateTimeOffset StartTime => startExecutionTime;
-    internal DateTimeOffset EndTime => endExecutionTime;
+    internal DateTimeOffset StartTime => startTime;
+    internal DateTimeOffset EndTime => endTime;
 
     /// <summary>
     /// Starts the timer, initiating the timing operation.
     /// </summary>
     public virtual void StartTimer()
     {
-        if (!startExecutionTimestamp.HasValue)
+        if (!startTimestamp.HasValue)
         {
-            startExecutionTimestamp = TimerUtils.TimerCurrent();
-            startExecutionTime = DateTimeOffset.UtcNow;
+            startTimestamp = TimerUtils.TimerCurrent();
+            startTime = DateTimeOffset.UtcNow;
         }
     }
 
@@ -46,16 +46,16 @@ internal abstract class ExecutionProfiler(DuckDBNativeConnection duckDBNativeCon
     /// </summary>
     protected virtual void ReleaseAndUpdateExecutionTimer()
     {
-        if (startExecutionTimestamp.HasValue)
+        if (startTimestamp.HasValue)
         {
-            long elapsed = TimerUtils.CalculateTickCountElapsed(startExecutionTimestamp.Value, TimerUtils.TimerCurrent());
+            long elapsed = TimerUtils.CalculateTickCountElapsed(startTimestamp.Value, TimerUtils.TimerCurrent());
             executionTime += elapsed;
 
             // Convert the elapsed high-resolution ticks to a TimeSpan and apply to the wall-clock start time.
             var elapsedSpan = TimerUtils.TimerToTimeSpan(elapsed);
-            endExecutionTime = startExecutionTime.Add(elapsedSpan);
+            endTime = startTime.Add(elapsedSpan);
 
-            startExecutionTimestamp = null;
+            startTimestamp = null;
         }
     }
 
@@ -67,7 +67,7 @@ internal abstract class ExecutionProfiler(DuckDBNativeConnection duckDBNativeCon
     /// <summary>
     /// Resets the object to its initial state.
     /// </summary>
-    public abstract void Reset();
+    public virtual void Reset() { }
 
     /// <summary>
     /// Gets the current state of the current operation, indicating success or error

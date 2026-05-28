@@ -21,7 +21,7 @@ public partial class DuckDBConnection : DbConnection
     private static readonly StateChangeEventArgs FromOpenToClosedEventArgs = new(ConnectionState.Open, ConnectionState.Closed);
 
     // Statistics support
-    internal ConnectionStatistics? profilingInfo;
+    private ConnectionStatistics? statistics;
     private bool isProfilingEnabled;
     private ProfilingOptions? profilingOptions;
 
@@ -278,7 +278,7 @@ public partial class DuckDBConnection : DbConnection
                 Close();
             }
 
-            profilingInfo?.Dispose();
+            statistics?.Dispose();
         }
 
         base.Dispose(disposing);
@@ -340,10 +340,10 @@ public partial class DuckDBConnection : DbConnection
     /// <returns>A <see cref="ProfilingSummary"/> containing the collected statistics.</returns>
     public ProfilingSummary RetrieveStatistics()
     {
-        if (profilingInfo != null)
+        if (statistics != null)
         {
             UpdateStatistics();
-            return profilingInfo.GetProfilingSummary();
+            return statistics.GetProfilingSummary();
         }
         else
         {
@@ -380,7 +380,7 @@ public partial class DuckDBConnection : DbConnection
     public void DisableProfiling(bool resetStatistics = false)
     {
         // stop
-        profilingInfo?.closeTimestamp = TimerUtils.TimerCurrent();
+        statistics?.StopTimer();
         DisableProfiling();
 
         if (resetStatistics)
@@ -400,7 +400,7 @@ public partial class DuckDBConnection : DbConnection
     {
         if (ProfilingEnabled)
         {
-            profilingInfo?.Reset();
+            statistics?.Reset();
         }
     }
 
@@ -416,7 +416,7 @@ public partial class DuckDBConnection : DbConnection
 
         if (ProfilingEnabled)
         {
-            profilingInfo = new ConnectionStatistics(NativeConnection, isProfilingEnabled, this.profilingOptions);
+            statistics = new ConnectionStatistics(NativeConnection, isProfilingEnabled, this.profilingOptions);
             LoadStatisticsProfile();
         }
     }
@@ -434,7 +434,7 @@ public partial class DuckDBConnection : DbConnection
         }
         this.profilingOptions = options;
 
-        profilingInfo?.Reset();
+        statistics?.Reset();
         LoadStatisticsProfile();
     }
 
@@ -455,7 +455,7 @@ public partial class DuckDBConnection : DbConnection
             }
         }
 
-        profilingInfo?.DisableQueryExecutionTracing();
+        statistics?.DisableQueryExecutionTracing();
         isProfilingEnabled = false;
     }
 
@@ -470,7 +470,7 @@ public partial class DuckDBConnection : DbConnection
     /// <exception cref="DuckDBException">Thrown if an error occurs while setting profiling configuration options.</exception>
     private void LoadStatisticsProfile()
     {
-        profilingInfo?.openTimestamp = TimerUtils.TimerCurrent();
+        statistics?.StartTimer();
 
         if (ProfilingEnabled && profilingOptions is { } options)
         {
@@ -516,10 +516,11 @@ public partial class DuckDBConnection : DbConnection
         if (ConnectionState.Open == State)
         {
             // update timestamp
-            profilingInfo?.closeTimestamp = TimerUtils.TimerCurrent();
+            statistics?.StopTimer();
         }
+
         // delegate the rest of the work to the SqlStatistics class
-        profilingInfo?.UpdateStatistics();
+        statistics?.UpdateStatistics();
     }
     #endregion
 }

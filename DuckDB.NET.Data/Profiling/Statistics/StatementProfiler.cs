@@ -21,8 +21,8 @@ internal sealed class StatementProfiler(int queryIndex, DuckDBNativeConnection c
     internal ProfilingStatementSummary GetSummary()
     {
         return new ProfilingStatementSummary(
-            StartTime: startExecutionTime,
-            EndTime: endExecutionTime,
+            StartTime: startTime,
+            EndTime: endTime,
             ExecutionTimeMilliseconds: TimerUtils.TimerToMilliseconds(executionTime),
             Order: queryIndex,
             Metrics: Info,
@@ -34,11 +34,11 @@ internal sealed class StatementProfiler(int queryIndex, DuckDBNativeConnection c
     public override void AcquireMetrics()
     {
         // If a metrics threshold is set, check if the elapsed execution time meets the threshold before acquiring metrics.
-        if ((profilingOptions?.MetricsThresholdMS ?? 0) > 0)
+        if ((profilingOptions?.MetricsThreshold ?? 0) > 0)
         {
-            long elapsed = TimerUtils.CalculateTickCountElapsed(startExecutionTimestamp ?? 0, TimerUtils.TimerCurrent());
+            long elapsed = TimerUtils.CalculateTickCountElapsed(startTimestamp ?? 0, TimerUtils.TimerCurrent());
 
-            if (TimerUtils.TimerToMilliseconds(elapsed) < (profilingOptions?.MetricsThresholdMS ?? 0))
+            if (TimerUtils.TimerToMilliseconds(elapsed) < (profilingOptions?.MetricsThreshold ?? 0))
                 return;
         }
 
@@ -54,8 +54,8 @@ internal sealed class StatementProfiler(int queryIndex, DuckDBNativeConnection c
     public override void Reset()
     {
         executionTime = 0;
-        startExecutionTimestamp = null;
-        startExecutionTime = default;
-        endExecutionTime = default;
+        startTimestamp = null;
+        startTime = default;
+        endTime = default;
     }
 }

@@ -58,7 +58,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName, DuckDBMetricType.CpuTime },
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard,
-            MetricsThresholdMS = 1 // very small threshold so a heavy query will exceed it
+            MetricsThreshold = 1 // very small threshold so a heavy query will exceed it
         };
 
         Connection.EnableProfiling(options);
@@ -97,7 +97,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard,
-            MetricsThresholdMS = 10000 // high threshold to prevent metrics collection for a short query
+            MetricsThreshold = 10000 // high threshold to prevent metrics collection for a short query
         };
 
         Connection.EnableProfiling(options);

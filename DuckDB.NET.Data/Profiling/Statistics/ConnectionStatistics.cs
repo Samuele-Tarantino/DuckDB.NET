@@ -5,28 +5,18 @@ using System.Linq;
 
 namespace DuckDB.NET.Data.Profiling.Statistics;
 
-internal sealed class ConnectionStatistics : IDisposable
+internal sealed class ConnectionStatistics : ExecutionProfiler
 {
 
     // internal values that are not exposed through properties
-    private static readonly ConcurrentDictionary<DuckDBNativeConnection, ConnectionStatistics> ByNativeConnection
-= new(ReferenceEqualityComparer.Instance);
+    private static readonly ConcurrentDictionary<DuckDBNativeConnection, ConnectionStatistics> ByNativeConnection = new();
 
-
-    internal long closeTimestamp;
-    internal long openTimestamp;
-    internal long? startExecutionTimestamp;
     private bool enableQueryExecutionTracing;
-    private readonly DuckDBNativeConnection duckDBNativeConnection;
-    private readonly ProfilingOptions? profilingOptions;
     private readonly ConcurrentDictionary<IntPtr, QueryProfiler> queryProfilers = new();
     private bool isDisposed = false;
 
     // internal values that are exposed through properties
-    internal long executionTime;
     internal long connectionTime;
-    internal DateTimeOffset startExecutionTime;
-    internal DateTimeOffset endExecutionTime;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ConnectionStatistics"/> class.
@@ -35,10 +25,9 @@ internal sealed class ConnectionStatistics : IDisposable
     /// <param name="enableQueryExecutionTracing">Indicates whether query execution tracing is enabled.</param>
     /// <param name="profilingOptions">The profiling options for the connection.</param>
     internal ConnectionStatistics(DuckDBNativeConnection duckDBNativeConnection, bool enableQueryExecutionTracing = false, ProfilingOptions? profilingOptions = default)
+        : base(duckDBNativeConnection, profilingOptions)
     {
         this.enableQueryExecutionTracing = enableQueryExecutionTracing;
-        this.duckDBNativeConnection = duckDBNativeConnection;
-        this.profilingOptions = profilingOptions;
 
         // Add or update the mapping for the native connection to this ConnectionStatistics instance
         ByNativeConnection.AddOrUpdate(duckDBNativeConnection, this, (_, _) => this);
@@ -85,11 +74,11 @@ internal sealed class ConnectionStatistics : IDisposable
     }
 
     /// <summary>
-    /// Creates a new <see cref="QueryProfilerTracer"/> for the specified query if query execution tracing is enabled.
+    /// Creates a new <see cref="QueryProfiler"/> for the specified query if query execution tracing is enabled.
     /// </summary>
-    /// <param name="queryIdentifier">A pointer that uniquely identifies the query for which the profiler tracer is created.</param>
+    /// <param name="queryIdentifier">A pointer that uniquely identifies the query for which the profiler is created.</param>
     /// <param name="statementCount">The number of statements in the query to be profiled. Must be non-negative.</param>
-    /// <returns>A new instance of <see cref="QueryProfilerTracer"/> if query execution tracing is enabled; otherwise, <see langword="null"/>.</returns>
+    /// <returns>A new instance of <see cref="QueryProfiler"/> if query execution tracing is enabled; otherwise, <see langword="null"/>.</returns>
     internal QueryProfiler? CreateQueryProfiler(IntPtr queryIdentifier, int statementCount)
     {
         if (!enableQueryExecutionTracing)
@@ -105,9 +94,9 @@ internal sealed class ConnectionStatistics : IDisposable
     internal void UpdateStatistics()
     {
         // update connection time
-        if (closeTimestamp >= openTimestamp && long.MaxValue > closeTimestamp - openTimestamp)
+        if (endTime >= startTime && long.MaxValue > (endTime - startTime).Ticks)
         {
-            connectionTime = closeTimestamp - openTimestamp;
+            connectionTime = (endTime - startTime).Ticks;
         }
         else
         {
@@ -117,7 +106,7 @@ internal sealed class ConnectionStatistics : IDisposable
 
     private IEnumerable<ProfilingQuerySummary> ReadSummaries()
     {
-        foreach (var queryProfiler in queryProfilers.Values)
+        foreach (var queryProfiler in queryProfilers.Values.OrderBy(qp => qp.StartTime))
         {
             yield return queryProfiler.GetSummary();
         }
@@ -126,22 +115,21 @@ internal sealed class ConnectionStatistics : IDisposable
     internal ProfilingSummary GetProfilingSummary()
     {
         return new ProfilingSummary(
-            new DateTimeOffset(openTimestamp, TimeSpan.Zero),
-            new DateTimeOffset(connectionTime, TimeSpan.Zero),
+             startTime,
+             endTime,
             TimerUtils.TimerToMilliseconds(connectionTime),
             TimerUtils.TimerToMilliseconds(queryProfilers.Values.Sum(qp => qp.ExecutionTime)),
             queryProfilers.Values.Count,
             [.. ReadSummaries()]);
     }
 
-    internal void Reset()
+    public override void Reset()
     {
         executionTime = 0;
-        startExecutionTimestamp = null;
+        startTimestamp = null;
         connectionTime = 0;
-        startExecutionTime = default;
-        endExecutionTime = default;
-        openTimestamp = 0;
+        startTime = default;
+        endTime = default;
 
         queryProfilers.Clear();
     }

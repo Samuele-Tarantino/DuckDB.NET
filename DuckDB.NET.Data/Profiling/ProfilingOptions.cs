@@ -28,8 +28,9 @@
         public DuckDBMetricTypeCollection EnabledMetrics { get; init; }
 
         /// <summary>
-        /// The threshold value used for metrics acquisition, in milliseconds.
+        /// The threshold (in milliseconds) used for metrics acquisition. 
         /// </summary>
-        public int MetricsThresholdMS { get; init; }
+        /// <remarks>Execution times below this threshold may not trigger metrics collection.</remarks>
+        public int MetricsThreshold { get; init; }
     }
 }

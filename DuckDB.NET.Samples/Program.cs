@@ -269,7 +269,8 @@ namespace DuckDB.NET.Samples
                     DuckDBMetricType.SystemPeakBufferMemory,
                     DuckDBMetricType.SystemPeakTempDirSize,
                     DuckDBMetricType.WriteToWalLatency,
-                ]
+                ],
+                MetricsThreshold = 100
             };
 
             con.Open();

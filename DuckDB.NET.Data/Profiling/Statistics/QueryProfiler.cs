@@ -34,8 +34,8 @@ internal sealed class QueryProfiler(IntPtr queryIdentifier, int statementCount, 
         errorMessage = !string.IsNullOrEmpty(ErrorMessage) ? ErrorMessage : (childWithError?.ErrorMessage ?? string.Empty);
 
         return new ProfilingQuerySummary(
-             startExecutionTime,
-             endExecutionTime,
+             startTime,
+             endTime,
              TimerUtils.TimerToMilliseconds(executionTime),
              statementCount,
              [.. statementProfilers.Select(sp => sp.GetSummary())],
@@ -64,8 +64,8 @@ internal sealed class QueryProfiler(IntPtr queryIdentifier, int statementCount, 
     public override void Reset()
     {
         executionTime = 0;
-        startExecutionTimestamp = null;
-        startExecutionTime = default;
-        endExecutionTime = default;
+        startTimestamp = null;
+        startTime = default;
+        endTime = default;
     }
 }
