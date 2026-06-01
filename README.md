@@ -100,7 +100,7 @@ Current version:
 Set explicit version:
 
 ```powershell
-.\scripts\irion-package.ps1 -Command set -Version 1.5.2.2-beta.1
+.\scripts\irion-package.ps1 -Command set -Version 1.5.2.2-rc.1
 ```
 
 Bump version in `build/irion.version`:
