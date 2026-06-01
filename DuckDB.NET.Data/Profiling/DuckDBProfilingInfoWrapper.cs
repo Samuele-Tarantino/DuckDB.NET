@@ -12,7 +12,7 @@ public class DuckDBProfilingInfoWrapper : IDisposable
         this.handle = handle;
     }
 
-    public static DuckDBProfilingInfoWrapper GetProfilingInfo(DuckDBNativeConnection connection)
+    public static DuckDBProfilingInfoWrapper? GetProfilingInfo(DuckDBNativeConnection connection)
     {
         ArgumentNullException.ThrowIfNull(connection);
 

@@ -448,7 +448,7 @@ public partial class DuckDBConnection : DbConnection
     {
         if (ProfilingEnabled && State == ConnectionState.Open)
         {
-            var state = NativeMethods.Query.DuckDBQuery(NativeConnection, "PRAGMA disable_profiling; PRAGMA disable_profile;", out _);
+            var state = NativeMethods.Query.DuckDBQuery(NativeConnection, "CALL disable_profiling();", out _);
             if (!state.IsSuccess())
             {
                 throw new DuckDBException("Error disabling profiling.");
@@ -475,15 +475,17 @@ public partial class DuckDBConnection : DbConnection
         if (ProfilingEnabled && profilingOptions is { } options)
         {
             var sb = new StringBuilder();
-            sb.Append($"SET enable_profiling = '{options.Format.ToDuckDBProfilingFormatString()}';");
-            sb.Append($"SET profiling_coverage = '{options.Coverage}';");
-            sb.Append($"SET profiling_mode = '{options.Mode}';");
-            
-            if (!string.IsNullOrEmpty(options.OutputPath))
-                sb.Append($"SET profiling_output = '{options.OutputPath}';");
 
-            var metrics = options.EnabledMetrics ?? new DuckDBMetricTypeCollection(DuckDBMetrics.DefaultMetrics);
-            sb.Append($"SET custom_profiling_settings = '{metrics.ToDuckDBMetricString()}';");
+            sb.AppendLine("CALL enable_profiling(");
+            sb.AppendLine($"    format := '{options.Format.ToDuckDBProfilingFormatString()}',");
+            sb.AppendLine($"    coverage := '{options.Coverage}',");
+            sb.AppendLine($"    mode := '{options.Mode}',");
+
+            if (!string.IsNullOrEmpty(options.OutputPath))
+                sb.AppendLine($"    save_location := '{options.OutputPath}',");
+
+            sb.AppendLine($"    metrics := '{(options.EnabledMetrics ?? new DuckDBMetricTypeCollection(DuckDBMetrics.DefaultMetrics)).ToDuckDBMetricString()}'");
+            sb.AppendLine(");");
 
             var state = NativeMethods.Query.DuckDBQuery(NativeConnection, sb.ToString(), out var queryResult);
             if (!state.IsSuccess())
