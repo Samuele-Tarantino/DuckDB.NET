@@ -342,7 +342,8 @@ public enum DuckDBProfilingFormat
 public enum DuckDBProfilingMode
 {
     Standard,
-    Detailed
+    Detailed,
+    All
 }
 
 public enum DuckDBProfilingCoverage
