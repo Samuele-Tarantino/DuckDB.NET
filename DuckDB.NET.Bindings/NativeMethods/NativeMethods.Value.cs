@@ -272,7 +272,7 @@ public partial class NativeMethods
         {
             var duckDBValue = DuckDBCreateMapValue(logicalType, keys.Select(item => item.DangerousGetHandle()).ToArray(), values.Select(item => item.DangerousGetHandle()).ToArray(), count);
 
-            duckDBValue.SetChildValues(values);
+            duckDBValue.SetChildValues([.. keys, .. values]);
 
             return duckDBValue;
         }

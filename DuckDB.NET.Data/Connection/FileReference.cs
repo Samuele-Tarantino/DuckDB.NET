@@ -15,7 +15,7 @@ internal class FileReference(string filename)
     public long ConnectionCount { get; private set; } //don't need a long, but it is slightly faster on 64 bit systems
 
     /// <summary>
-    /// Gets a value indicating whether profiling is enabled for the current context. 
+    /// Gets a value indicating whether profiling is enabled for the current context.
     /// Is used to ensure that the DuckDBDatabase is created with the correct profiling mode when a connection is opened on the same database
     /// </summary>
     public bool IsProfilingEnabled { get; internal set; }

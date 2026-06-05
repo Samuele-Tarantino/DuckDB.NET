@@ -345,7 +345,7 @@ namespace DuckDB.NET.Samples
 
         private static string PrintStatementMetrics(ProfilingInfoMetrics profilingSummary)
         {
-            return string.Join("", profilingSummary.ToDictionary().ToList().Select(kv => $"\n\t\t{kv.Key}: {kv.Value}")); 
+            return string.Join("", profilingSummary.ToDictionary().ToList().Select(kv => $"\n\t\t{kv.Key}: {kv.Value}"));
         }
 
         private static void PrintQueryResults(DbDataReader queryResult)

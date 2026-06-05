@@ -334,7 +334,7 @@ public partial class DuckDBConnection : DbConnection
     public bool ProfilingEnabled => isProfilingEnabled;
 
     /// <summary>
-    /// Retrieves a summary of the collected profiling statistics, including connection time, execution time, and any relevant metrics. 
+    /// Retrieves a summary of the collected profiling statistics, including connection time, execution time, and any relevant metrics.
     /// If profiling is not enabled, this method will return an empty summary.
     /// </summary>
     /// <returns>A <see cref="ProfilingSummary"/> containing the collected statistics.</returns>

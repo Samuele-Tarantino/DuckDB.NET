@@ -49,7 +49,7 @@ internal sealed class PreparedStatement : IDisposable
                     var result = preparedStatement.Execute(parameters, useStreamingMode, connection);
 
                     // Stop the query profiler after the last statement has been executed.
-                    // This ensures that the total execution time for the entire batch of statements is accurately captured 
+                    // This ensures that the total execution time for the entire batch of statements is accurately captured
                     // and not after the data retrieval of the last statement.
                     if (index == statementCount - 1)
                     {
