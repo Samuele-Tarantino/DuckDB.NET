@@ -3,7 +3,6 @@
   <PropertyGroup>
 	<TargetFrameworks>net10.0;net8</TargetFrameworks>
 	<OutputType>Exe</OutputType>
-	  
 	<AssemblyName>Irion.DuckDB.NET.Benchmark</AssemblyName>
 	<RootNamespace>Irion.DuckDB.NET.Benchmark</RootNamespace>
 	<PackageId>Irion.DuckDB.NET.Benchmark</PackageId>
