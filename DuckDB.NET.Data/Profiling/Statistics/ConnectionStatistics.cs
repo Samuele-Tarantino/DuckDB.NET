@@ -14,7 +14,7 @@ internal sealed class ConnectionStatistics : ExecutionProfiler
     private static readonly ConcurrentDictionary<DuckDBNativeConnection, ConnectionStatistics> ByNativeConnection = new();
 
     private bool enableQueryExecutionTracing;
-    private readonly ConcurrentDictionary<IntPtr, QueryProfiler> queryProfilers = new();
+    private readonly ConcurrentDictionary<int, QueryProfiler> queryProfilers = new();
     private bool isDisposed = false;
     private int nextQueryId = 0;
 
