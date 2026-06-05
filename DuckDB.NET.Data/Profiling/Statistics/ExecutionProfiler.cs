@@ -51,9 +51,10 @@ internal abstract class ExecutionProfiler(DuckDBNativeConnection duckDBNativeCon
             long elapsed = TimerUtils.CalculateTickCountElapsed(startTimestamp.Value, TimerUtils.TimerCurrent());
             executionTime += elapsed;
 
-            // Convert the elapsed high-resolution ticks to a TimeSpan and apply to the wall-clock start time.
-            var elapsedSpan = TimerUtils.TimerToTimeSpan(elapsed);
-            endTime = startTime.Add(elapsedSpan);
+            // Convert the total accumulated high-resolution ticks to a TimeSpan and apply to the wall-clock start time.
+            // Use the cumulative executionTime so that multiple start/stop segments are represented correctly.
+            var totalSpan = TimerUtils.TimerToTimeSpan(executionTime);
+            endTime = startTime.Add(totalSpan);
 
             startTimestamp = null;
         }

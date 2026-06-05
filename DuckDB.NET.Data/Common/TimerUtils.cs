@@ -23,7 +23,15 @@ internal sealed class TimerUtils
     /// <param name="timerValue">The timer value to convert, typically representing elapsed timer ticks.</param>
     /// <returns>The equivalent duration in milliseconds calculated from the specified timer value.</returns>
     internal static long TimerToMilliseconds(long timerValue)
-        => timerValue * 1000 / Frequency;
+        {
+            // sentinel handling: preserve "infinite" indicator
+            if (timerValue == long.MaxValue)
+            {
+                return long.MaxValue;
+            }
+
+            return timerValue * 1000 / Frequency;
+        }
 
     /// <summary>
     /// Converts a timer tick duration (as returned by <see cref="Stopwatch.GetTimestamp"/>) to a <see cref="TimeSpan"/>.
@@ -32,9 +40,29 @@ internal sealed class TimerUtils
     /// <returns>A <see cref="TimeSpan"/> representing the duration of the provided timer ticks.</returns>
     internal static TimeSpan TimerToTimeSpan(long timerValue)
     {
+        // sentinel handling: preserve "infinite" indicator
+        if (timerValue == long.MaxValue)
+        {
+            return TimeSpan.MaxValue;
+        }
+
         // Convert stopwatch ticks to DateTime/TimeSpan ticks. TimeSpan.TicksPerSecond = 10_000_000.
         long timeSpanTicks = timerValue * TimeSpan.TicksPerSecond / Frequency;
         return TimeSpan.FromTicks(timeSpanTicks);
+    }
+
+    /// <summary>
+    /// Converts a TimeSpan tick count (100-nanosecond ticks) to milliseconds as a double.
+    /// Handles sentinel long.MaxValue as an infinite duration.
+    /// </summary>
+    internal static double TimeSpanTicksToMilliseconds(long timeSpanTicks)
+    {
+        if (timeSpanTicks == long.MaxValue)
+        {
+            return double.MaxValue;
+        }
+
+        return TimeSpan.FromTicks(timeSpanTicks).TotalMilliseconds;
     }
 
     /// <summary>

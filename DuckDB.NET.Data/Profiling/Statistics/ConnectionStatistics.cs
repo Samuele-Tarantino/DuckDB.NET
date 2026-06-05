@@ -124,11 +124,16 @@ internal sealed class ConnectionStatistics : ExecutionProfiler
 
     internal ProfilingSummary GetProfilingSummary()
     {
+        var connectionTimeMs = TimerUtils.TimeSpanTicksToMilliseconds(connectionTime);
+
+        // QueryProfiler.ExecutionTime is already exposed in milliseconds via ExecutionTime property
+        var executionTimeMs = queryProfilers.Values.Sum(qp => (double)qp.ExecutionTime);
+
         return new ProfilingSummary(
-             startTime,
-             endTime,
-            TimerUtils.TimerToMilliseconds(connectionTime),
-            TimerUtils.TimerToMilliseconds(queryProfilers.Values.Sum(qp => qp.ExecutionTime)),
+            startTime,
+            endTime,
+            connectionTimeMs,
+            executionTimeMs,
             queryProfilers.Values.Count,
             [.. ReadSummaries()]);
     }

@@ -38,7 +38,7 @@ internal sealed class QueryProfiler(IntPtr queryIdentifier, int statementCount, 
              endTime,
              TimerUtils.TimerToMilliseconds(executionTime),
              statementCount,
-             [.. statementProfilers.Select(sp => sp.GetSummary())],
+             [.. statementProfilers.Select(sp => sp?.GetSummary() ?? default)],
              state,
              errorMessage
             );

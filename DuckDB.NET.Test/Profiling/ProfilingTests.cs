@@ -1,53 +1,160 @@
-﻿using DuckDB.NET.Data.Profiling;
+﻿using DuckDB.NET.Data.Common;
+using DuckDB.NET.Data.Profiling;
 using DuckDB.NET.Test.Helpers;
-using DuckDB.NET.Native;
+using System;
+using System.Linq;
+using System.Threading;
 
 namespace DuckDB.NET.Test.Profiling;
 
 public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
 {
 
-        [Fact]
-        public void ProfilingSummariesContainCorrectStateAndMessageOnSuccess()
+    [Fact]
+    public void ProfilingSummariesContainCorrectStateAndMessageOnSuccess()
+    {
+        var options = new ProfilingOptions
         {
-            var options = new ProfilingOptions
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection(),
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard
+        };
+
+        Connection.EnableProfiling(options);
+
+        try
+        {
+            Connection.ResetStatistics();
+
+            Command.CommandText = "SELECT 1;";
+            using (var r = Command.ExecuteReader()) { }
+
+            var summary = Connection.RetrieveStatistics();
+            summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
+
+            var last = summary.QuerySummaryList.Last();
+            // Expect overall query to be successful
+            last.State.Should().Be(DuckDBState.Success);
+            last.Message.Should().BeNullOrEmpty();
+
+            // Expect constituent statements to be successful as well
+            if (last.StatementSummaries.Length > 0)
             {
-                Coverage = DuckDBProfilingCoverage.All,
-                EnabledMetrics = new DuckDBMetricTypeCollection(),
-                Format = DuckDBProfilingFormat.Json,
-                Mode = DuckDBProfilingMode.Standard
-            };
-
-            Connection.EnableProfiling(options);
-
-            try
-            {
-                Connection.ResetStatistics();
-
-                Command.CommandText = "SELECT 1;";
-                using (var r = Command.ExecuteReader()) { }
-
-                var summary = Connection.RetrieveStatistics();
-                summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
-
-                var last = summary.QuerySummaryList.Last();
-                // Expect overall query to be successful
-                last.State.Should().Be(DuckDBState.Success);
-                last.Message.Should().BeNullOrEmpty();
-
-                // Expect constituent statements to be successful as well
-                if (last.StatementSummaries.Length > 0)
-                {
-                    var stmt = last.StatementSummaries.Last();
-                    stmt.State.Should().Be(DuckDBState.Success);
-                    stmt.Message.Should().BeNullOrEmpty();
-                }
-            }
-            finally
-            {
-                Connection.DisableProfiling();
+                var stmt = last.StatementSummaries.Last();
+                stmt.State.Should().Be(DuckDBState.Success);
+                stmt.Message.Should().BeNullOrEmpty();
             }
         }
+        finally
+        {
+            Connection.DisableProfiling();
+        }
+    }
+
+    [Fact]
+    public void ProfilingSummary_ConversionsAreConsistent()
+    {
+        var options = new ProfilingOptions
+        {
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard
+        };
+
+        Connection.EnableProfiling(options);
+
+        try
+        {
+            Connection.ResetStatistics();
+
+            // run two queries with measurable time
+            Command.CommandText = "SELECT SUM(i) FROM range(200000) AS t(i);";
+            using (var r = Command.ExecuteReader()) { }
+
+            Command.CommandText = "SELECT 1;";
+            using (var r = Command.ExecuteReader()) { }
+
+            var summary = Connection.RetrieveStatistics();
+            summary.QuerySummaryList.Length.Should().BeGreaterThanOrEqualTo(1);
+
+            // connection-level: wall-clock vs stored connection time (milliseconds)
+            var wallConnMs = (summary.EndTime - summary.StartTime).TotalMilliseconds;
+            Math.Abs(wallConnMs - summary.ConnectionTimeMilliseconds).Should().BeLessThan(250, "Connection time conversion should match wall-clock duration");
+
+            // execution time (total) should equal summed query execution times
+            var sumQueryExecMs = summary.QuerySummaryList.Sum(q => q.ExecutionTimeMilliseconds);
+            Math.Abs(sumQueryExecMs - summary.ExecutionTimeMilliseconds).Should().BeLessThan(200, "Total execution time should match sum of query execution times");
+
+            // per-query: check wall-clock vs measured execution time and statement sum
+            foreach (var q in summary.QuerySummaryList)
+            {
+                var wallMs = (q.EndTime - q.StartTime).TotalMilliseconds;
+                Math.Abs(wallMs - q.ExecutionTimeMilliseconds).Should().BeLessThan(250, "Query execution conversion should match wall-clock duration");
+
+                var sumStmtMs = q.StatementSummaries.Sum(s => s.ExecutionTimeMilliseconds);
+                Math.Abs(sumStmtMs - q.ExecutionTimeMilliseconds).Should().BeLessThan(200, "Query execution time should match sum of statement execution times");
+            }
+        }
+        finally
+        {
+            Connection.DisableProfiling();
+        }
+    }
+
+    [Fact]
+    public void TimerUtils_ConversionsAreConsistent()
+    {
+        // measure a short delay using Stopwatch ticks and verify conversions
+        long start = System.Diagnostics.Stopwatch.GetTimestamp();
+        Thread.Sleep(120);
+        long end = System.Diagnostics.Stopwatch.GetTimestamp();
+
+        long elapsed = end - start;
+
+        var msFromTimer = TimerUtils.TimerToMilliseconds(elapsed);
+        var span = TimerUtils.TimerToTimeSpan(elapsed);
+
+        // both conversions should be approximately the same
+        Math.Abs(((long)span.TotalMilliseconds) - msFromTimer).Should().BeLessOrEqualTo(2);
+
+        // and should be close to the real sleep duration
+        msFromTimer.Should().BeGreaterOrEqualTo(100);
+    }
+
+    [Fact]
+    public void Profiler_StartStop_ProducesConsistentTiming()
+    {
+        var options = new ProfilingOptions { Coverage = DuckDBProfilingCoverage.All };
+        Connection.EnableProfiling(options);
+
+        try
+        {
+            Connection.ResetStatistics();
+
+            // run a query that takes measurable time and is visible through public RetrieveStatistics API
+            Command.CommandText = "SELECT SUM(i) FROM range(200000) AS t(i);";
+            using (var r = Command.ExecuteReader()) { }
+
+            var summary = Connection.RetrieveStatistics();
+            summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
+
+            var last = summary.QuerySummaryList.Last();
+
+            // execution time should be non-zero and reasonable
+            last.ExecutionTimeMilliseconds.Should().BeGreaterThan(0);
+
+            var wallMs = (last.EndTime - last.StartTime).TotalMilliseconds;
+
+            // the wall-clock duration and the measured execution time should be reasonably close
+            Math.Abs(wallMs - last.ExecutionTimeMilliseconds).Should().BeLessThan(200, "Timer conversion should be consistent with wall-clock duration");
+        }
+        finally
+        {
+            Connection.DisableProfiling();
+        }
+    }
 
     [Fact]
     public void QueryAndStatementStatusAndTimingWhenPrepareFails()
@@ -247,51 +354,51 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         }
     }
 
-        [Fact]
-        public void ProfilingSummariesContainCorrectStateAndMessageOnError()
+    [Fact]
+    public void ProfilingSummariesContainCorrectStateAndMessageOnError()
+    {
+        var options = new ProfilingOptions
         {
-            var options = new ProfilingOptions
-            {
-                Coverage = DuckDBProfilingCoverage.All,
-                EnabledMetrics = new DuckDBMetricTypeCollection(),
-                Format = DuckDBProfilingFormat.Json,
-                Mode = DuckDBProfilingMode.Standard
-            };
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection(),
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard
+        };
 
-            Connection.EnableProfiling(options);
+        Connection.EnableProfiling(options);
 
+        try
+        {
+            Connection.ResetStatistics();
+
+            // Execute a statement that will error
+            Command.CommandText = "SELECT * FROM __this_table_does_not_exist__";
             try
             {
-                Connection.ResetStatistics();
-
-                // Execute a statement that will error
-                Command.CommandText = "SELECT * FROM __this_table_does_not_exist__";
-                try
-                {
-                    using (var r = Command.ExecuteReader()) { }
-                }
-                catch (Exception)
-                {
-                    // swallow - we expect an error to be thrown by the command execution
-                }
-
-                var summary = Connection.RetrieveStatistics();
-                summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
-
-                var last = summary.QuerySummaryList.Last();
-                // Overall query should be marked as error
-                last.State.Should().Be(DuckDBState.Error);
-                last.Message.Should().NotBeNullOrWhiteSpace();
-
-                // Ensure at least one statement reports error state/message
-                var anyError = last.StatementSummaries.Any(i => i.State == DuckDBState.Error && !string.IsNullOrWhiteSpace(i.Message));
-                anyError.Should().BeTrue("At least one statement should report an error state and message");
+                using (var r = Command.ExecuteReader()) { }
             }
-            finally
+            catch (Exception)
             {
-                Connection.DisableProfiling();
+                // swallow - we expect an error to be thrown by the command execution
             }
+
+            var summary = Connection.RetrieveStatistics();
+            summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
+
+            var last = summary.QuerySummaryList.Last();
+            // Overall query should be marked as error
+            last.State.Should().Be(DuckDBState.Error);
+            last.Message.Should().NotBeNullOrWhiteSpace();
+
+            // Ensure at least one statement reports error state/message
+            var anyError = last.StatementSummaries.Any(i => i.State == DuckDBState.Error && !string.IsNullOrWhiteSpace(i.Message));
+            anyError.Should().BeTrue("At least one statement should report an error state and message");
         }
+        finally
+        {
+            Connection.DisableProfiling();
+        }
+    }
 
     [Fact]
     public void MetricsDictionaryContainsEnabledMetrics()
