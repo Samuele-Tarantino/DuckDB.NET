@@ -45,19 +45,17 @@ internal sealed class QueryProfiler(IntPtr queryIdentifier, int statementCount, 
     }
 
     /// <summary>
-    /// Stops the timer associated with the specified statement index.
+    /// Stops all the statement profilers associated with this query profiler.
     /// </summary>
-    /// <param name="statementIndex">The zero-based index of the statement whose timer should be stopped.</param>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown if statementIndex is less than zero or greater than the highest valid statement profiler index.</exception>
-    public void StopTimer(int statementIndex)
+    public override void StopTimer()
     {
-        if (statementIndex < 0 || statementIndex > statementProfilers.Length - 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(statementIndex), $"Index {statementIndex} is out of range for statement profilers.");
-        }
-        statementProfilers[statementIndex]?.StopTimer();
 
-        StopTimer();
+        foreach (var profiler in statementProfilers)
+        {
+            profiler?.StopTimer();
+        }
+
+        base.StopTimer();
     }
 
     /// <inheritdoc/>

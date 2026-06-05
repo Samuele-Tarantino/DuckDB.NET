@@ -142,6 +142,8 @@ internal sealed class ConnectionStatistics : ExecutionProfiler
         endTime = default;
 
         queryProfilers.Clear();
+
+        StartTimer();
     }
 
     // call on connection close/dispose

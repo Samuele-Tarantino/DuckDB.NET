@@ -5,19 +5,19 @@ public readonly record struct ProfilingQuerySummary(
     DateTimeOffset EndTime,
     double ExecutionTimeMilliseconds,
     int StatementCount,
-    ProfilingStatementSummary[] Infos,
+    ProfilingStatementSummary[] StatementSummaries,
     DuckDBState State,
     string Message)
 {
     public IDictionary<string, object> ToDictionary()
     {
-        return new Dictionary<string, object>(6)
+        return new Dictionary<string, object>(7)
         {
             ["StartTime"] = StartTime,
             ["EndTime"] = EndTime,
             ["ExecutionTime"] = ExecutionTimeMilliseconds,
             ["StatementCount"] = StatementCount,
-            ["Infos"] = Infos,
+            ["StatementSummaries"] = StatementSummaries,
             ["State"] = State,
             ["Message"] = Message
         };

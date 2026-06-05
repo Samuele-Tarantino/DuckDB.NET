@@ -11,13 +11,13 @@ public readonly record struct ProfilingStatementSummary(
 {
     public IDictionary<string, object> ToDictionary()
     {
-        return new Dictionary<string, object>(6)
+        return new Dictionary<string, object>(7)
         {
             ["StartTime"] = StartTime,
             ["EndTime"] = EndTime,
             ["ExecutionTime"] = ExecutionTimeMilliseconds,
             ["Order"] = Order,
-            ["Infos"] = Metrics,
+            ["Metrics"] = Metrics,
             ["State"] = State,
             ["Message"] = Message
         };

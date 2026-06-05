@@ -36,9 +36,9 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
                 last.Message.Should().BeNullOrEmpty();
 
                 // Expect constituent statements to be successful as well
-                if (last.Infos.Length > 0)
+                if (last.StatementSummaries.Length > 0)
                 {
-                    var stmt = last.Infos.Last();
+                    var stmt = last.StatementSummaries.Last();
                     stmt.State.Should().Be(DuckDBState.Success);
                     stmt.Message.Should().BeNullOrEmpty();
                 }
@@ -48,6 +48,129 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
                 Connection.DisableProfiling();
             }
         }
+
+    [Fact]
+    public void QueryAndStatementStatusAndTimingWhenPrepareFails()
+    {
+        var options = new ProfilingOptions
+        {
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection(),
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard
+        };
+
+        Connection.EnableProfiling(options);
+
+        try
+        {
+            Connection.ResetStatistics();
+
+            var id = Guid.NewGuid().ToString("N");
+            var tbl = $"pfp_{id}";
+
+            // batch where one statement will fail at prepare time (syntax error)
+            Command.CommandText = $"CREATE TABLE {tbl}(i INTEGER); BAD SYNTAX HERE; SELECT 1;";
+
+            try
+            {
+                using (var r = Command.ExecuteReader()) { do { } while (r.NextResult()); }
+            }
+            catch (Exception)
+            {
+                // swallow - prepare/execute is expected to throw
+            }
+
+            var summary = Connection.RetrieveStatistics();
+            summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
+
+            var last = summary.QuerySummaryList.Last();
+
+            // Query-level state should reflect the failure
+            last.State.Should().Be(DuckDBState.Error);
+            last.Message.Should().NotBeNullOrWhiteSpace();
+
+            // Timing at query-level should be well-formed
+            last.ExecutionTimeMilliseconds.Should().BeGreaterOrEqualTo(0);
+            (last.StartTime <= last.EndTime).Should().BeTrue("StartTime should be less than or equal to EndTime");
+
+            last.StatementSummaries.Should().NotBeNull();
+            last.StatementSummaries.Length.Should().Be(0, "No statements should be recorded when prepare fails");
+
+        }
+        finally
+        {
+            Connection.DisableProfiling();
+        }
+    }
+
+    [Fact]
+    public void QueryAndStatementStatusAndTimingWhenStatementFails()
+    {
+        var options = new ProfilingOptions
+        {
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection(),
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard
+        };
+
+        Connection.EnableProfiling(options);
+
+        try
+        {
+            Connection.ResetStatistics();
+
+            var id = Guid.NewGuid().ToString("N");
+            var tbl = $"pf_{id}";
+
+            // batch with multiple statements where the last one will fail
+            Command.CommandText = $"CREATE TABLE {tbl}(i INTEGER); INSERT INTO {tbl} VALUES (1); SELECT i FROM {tbl}; SELECT * FROM __this_table_does_not_exist__;";
+
+            try
+            {
+                using (var r = Command.ExecuteReader()) { do { } while (r.NextResult()); }
+            }
+            catch (Exception)
+            {
+                // swallow - we expect an error for the failing statement
+            }
+
+            var summary = Connection.RetrieveStatistics();
+            summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
+
+            var last = summary.QuerySummaryList.Last();
+
+            // Query-level state should reflect the failure
+            last.State.Should().Be(DuckDBState.Error);
+            last.Message.Should().NotBeNullOrWhiteSpace();
+
+            // Timing at query-level should be well-formed
+            last.ExecutionTimeMilliseconds.Should().BeGreaterOrEqualTo(0);
+            (last.StartTime <= last.EndTime).Should().BeTrue("StartTime should be less than or equal to EndTime");
+
+            // Ensure at least one statement reports error and at least one reports success
+            last.StatementSummaries.Should().NotBeNull();
+            last.StatementSummaries.Length.Should().BeGreaterThan(0);
+
+            var anyError = last.StatementSummaries.Any(i => i.State == DuckDBState.Error && !string.IsNullOrWhiteSpace(i.Message));
+            anyError.Should().BeTrue("At least one statement should report an error state and message when one statement in a query fails");
+
+            var anySuccess = last.StatementSummaries.Any(i => i.State == DuckDBState.Success);
+            anySuccess.Should().BeTrue("At least one statement prior to the failing statement should have succeeded");
+
+            // Check statement timing sanity
+            foreach (var stmt in last.StatementSummaries)
+            {
+                stmt.ExecutionTimeMilliseconds.Should().BeGreaterOrEqualTo(0);
+                (stmt.StartTime <= stmt.EndTime).Should().BeTrue("Statement StartTime should be less than or equal to EndTime");
+            }
+        }
+        finally
+        {
+            Connection.DisableProfiling();
+        }
+    }
 
     [Fact]
     public void MetricsCollectedWhenOverMetricsThreshold()
@@ -76,10 +199,10 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
 
             var last = summary.QuerySummaryList.Last();
-            last.Infos.Should().NotBeNull();
+            last.StatementSummaries.Should().NotBeNull();
 
             // When execution is over the metrics threshold, at least one statement should contain enabled metrics
-            var hasMetrics = last.Infos.Any(i => i.Metrics.ContainsKey(DuckDBMetricType.QueryName) || i.Metrics.ContainsKey(DuckDBMetricType.CpuTime));
+            var hasMetrics = last.StatementSummaries.Any(i => i.Metrics.ContainsKey(DuckDBMetricType.QueryName) || i.Metrics.ContainsKey(DuckDBMetricType.CpuTime));
             hasMetrics.Should().BeTrue("Metrics should be collected when execution time exceeds MetricsThresholdMS");
         }
         finally
@@ -113,10 +236,10 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
 
             var last = summary.QuerySummaryList.Last();
-            last.Infos.Should().NotBeNull();
+            last.StatementSummaries.Should().NotBeNull();
 
             // When execution is under the metrics threshold, no metrics should be extracted
-            last.Infos.All(i => i.Metrics.Count == 0).Should().BeTrue("Metrics should not be collected when execution time is below the configured MetricsThresholdMS");
+            last.StatementSummaries.All(i => i.Metrics.Count == 0).Should().BeTrue("Metrics should not be collected when execution time is below the configured MetricsThresholdMS");
         }
         finally
         {
@@ -161,7 +284,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
                 last.Message.Should().NotBeNullOrWhiteSpace();
 
                 // Ensure at least one statement reports error state/message
-                var anyError = last.Infos.Any(i => i.State == DuckDBState.Error && !string.IsNullOrWhiteSpace(i.Message));
+                var anyError = last.StatementSummaries.Any(i => i.State == DuckDBState.Error && !string.IsNullOrWhiteSpace(i.Message));
                 anyError.Should().BeTrue("At least one statement should report an error state and message");
             }
             finally
@@ -200,7 +323,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             // If no new summaries were produced, profiling might not be available in this environment.
             var newSummaries = summary.QuerySummaryList.Skip(beforeCount).ToArray();
             newSummaries.Length.Should().BeGreaterThan(0, "Expected new query summaries after executing batch");
-            var last = newSummaries.Last().Infos;
+            var last = newSummaries.Last().StatementSummaries;
 
             // check that enabled metrics appear in at least one statement's metrics
             var containsQueryName = last.Any(i => i.Metrics.ContainsKey(DuckDBMetricType.QueryName));
@@ -261,8 +384,8 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             summary.QueryCount.Should().BeGreaterThan(0);
 
             // with default options, there should be no metrics collected for Set statements
-            summary.QuerySummaryList.Last().Infos.Length.Should().Be(1);
-            summary.QuerySummaryList.Last().Infos[0].Metrics.Count.Should().Be(0);
+            summary.QuerySummaryList.Last().StatementSummaries.Length.Should().Be(1);
+            summary.QuerySummaryList.Last().StatementSummaries[0].Metrics.Count.Should().Be(0);
         }
         finally
         {
@@ -409,8 +532,8 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
                 var last1 = s1.QuerySummaryList.Last();
                 var last2 = s2.QuerySummaryList.Last();
 
-                var keys1 = new HashSet<DuckDBMetricType>(last1.Infos.SelectMany(i => i.Metrics.Keys));
-                var keys2 = new HashSet<DuckDBMetricType>(last2.Infos.SelectMany(i => i.Metrics.Keys));
+                var keys1 = new HashSet<DuckDBMetricType>(last1.StatementSummaries.SelectMany(i => i.Metrics.Keys));
+                var keys2 = new HashSet<DuckDBMetricType>(last2.StatementSummaries.SelectMany(i => i.Metrics.Keys));
 
                 // strict check: both sets of metric keys must match
                 keys1.Should().BeEquivalentTo(keys2);
@@ -459,8 +582,8 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             var lastOriginal = sOriginal.QuerySummaryList.Last();
             var lastDup = sDup.QuerySummaryList.Last();
 
-            var keysOrig = new HashSet<DuckDBMetricType>(lastOriginal.Infos.SelectMany(i => i.Metrics.Keys));
-            var keysDup = new HashSet<DuckDBMetricType>(lastDup.Infos.SelectMany(i => i.Metrics.Keys));
+            var keysOrig = new HashSet<DuckDBMetricType>(lastOriginal.StatementSummaries.SelectMany(i => i.Metrics.Keys));
+            var keysDup = new HashSet<DuckDBMetricType>(lastDup.StatementSummaries.SelectMany(i => i.Metrics.Keys));
 
             // strict check: both sets of metric keys must match
             keysOrig.Should().BeEquivalentTo(keysDup);
@@ -505,11 +628,11 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             var newSummaries = summary.QuerySummaryList.Skip(beforeCount).ToArray();
             newSummaries.Length.Should().BeGreaterThan(0, "Expected new query summaries after executing batch");
             var last = newSummaries.Last();
-            last.Infos.Should().NotBeNull();
-            last.Infos.Length.Should().BeGreaterThan(0, "Expected some profiling info when metrics are enabled");
+            last.StatementSummaries.Should().NotBeNull();
+            last.StatementSummaries.Length.Should().BeGreaterThan(0, "Expected some profiling info when metrics are enabled");
 
             // ensure at least one statement collected all requested metrics
-            bool found = last.Infos.Any(summary => metricsToEnable.All(m => summary.Metrics.ContainsKey(m)));
+            bool found = last.StatementSummaries.Any(summary => metricsToEnable.All(m => summary.Metrics.ContainsKey(m)));
 
             found.Should().BeTrue("At least one statement should include all the enabled metrics (QueryName, CpuTime, Latency, TotalBytesRead)");
         }
@@ -570,13 +693,13 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             var last = newSummaries.Last();
             last.StatementCount.Should().Be(3);
 
-            last.Infos.Should().NotBeNull();
+            last.StatementSummaries.Should().NotBeNull();
 
-            if (last.Infos.Length >= last.StatementCount)
+            if (last.StatementSummaries.Length >= last.StatementCount)
             {
                 for (int i = 0; i < last.StatementCount; i++)
                 {
-                    var info = i < last.Infos.Length ? last.Infos[i].Metrics : null;
+                    var info = i < last.StatementSummaries.Length ? last.StatementSummaries[i].Metrics : null;
                     if (i == selectPosition)
                     {
                         info.Should().NotBeNull();
@@ -592,7 +715,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             else
             {
                 // If Metrics length doesn't map 1:1 to statements, at least ensure exactly one statement collected metrics
-                var nonEmpty = last.Infos.Count(i => i.Metrics.Count > 0);
+                var nonEmpty = last.StatementSummaries.Count(i => i.Metrics.Count > 0);
                 nonEmpty.Should().Be(1, "Expected exactly one statement to have metrics when coverage=Select");
             }
         }
@@ -719,11 +842,11 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             last.StatementCount.Should().BeGreaterOrEqualTo(3);
 
             // For SELECT coverage, expect only the SELECT (last) statement to have metrics collected
-            if (last.Infos.Length >= last.StatementCount)
+            if (last.StatementSummaries.Length >= last.StatementCount)
             {
                 for (int i = 0; i < last.StatementCount; i++)
                 {
-                    var info = i < last.Infos.Length ? last.Infos[i].Metrics : null;
+                    var info = i < last.StatementSummaries.Length ? last.StatementSummaries[i].Metrics : null;
                     if (i == last.StatementCount - 1)
                     {
                         info.Should().NotBeNull();
@@ -738,7 +861,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             }
             else
             {
-                var nonEmpty = last.Infos.Count(i => i.Metrics.Count > 0);
+                var nonEmpty = last.StatementSummaries.Count(i => i.Metrics.Count > 0);
                 nonEmpty.Should().Be(1, "Expected exactly one statement to have metrics when coverage=Select");
             }
         }
