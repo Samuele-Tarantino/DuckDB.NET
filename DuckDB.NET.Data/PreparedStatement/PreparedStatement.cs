@@ -22,7 +22,7 @@ internal sealed class PreparedStatement : IDisposable
         {
             _ = ConnectionStatistics.TryGetFor(connection, out var stats);
             // Initialize the query profiler for the entire batch of statements. The profiler will be responsible for tracking the execution of all statements within this batch.
-            var queryProfiler = stats?.CreateQueryProfiler(extractedStatements.ToHandle(), statementCount);
+            var queryProfiler = stats?.CreateQueryProfiler(statementCount);
             queryProfiler?.StartTimer();
 
             if (statementCount <= 0)

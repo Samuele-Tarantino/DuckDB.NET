@@ -2,6 +2,8 @@
 using DuckDB.NET.Data.Profiling.Statistics.Summary;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace DuckDB.NET.Data.Profiling.Statistics;
 
@@ -14,6 +16,7 @@ internal sealed class ConnectionStatistics : ExecutionProfiler
     private bool enableQueryExecutionTracing;
     private readonly ConcurrentDictionary<IntPtr, QueryProfiler> queryProfilers = new();
     private bool isDisposed = false;
+    private int nextQueryId = 0;
 
     // internal values that are exposed through properties
     internal long connectionTime;
@@ -76,19 +79,26 @@ internal sealed class ConnectionStatistics : ExecutionProfiler
     /// <summary>
     /// Creates a new <see cref="QueryProfiler"/> for the specified query if query execution tracing is enabled.
     /// </summary>
-    /// <param name="queryIdentifier">A pointer that uniquely identifies the query for which the profiler is created.</param>
     /// <param name="statementCount">The number of statements in the query to be profiled. Must be non-negative.</param>
     /// <returns>A new instance of <see cref="QueryProfiler"/> if query execution tracing is enabled; otherwise, <see langword="null"/>.</returns>
-    internal QueryProfiler? CreateQueryProfiler(IntPtr queryIdentifier, int statementCount)
+    internal QueryProfiler? CreateQueryProfiler(int statementCount)
     {
         if (!enableQueryExecutionTracing)
         {
             return null;
         }
 
-        var queryProfiler = new QueryProfiler(queryIdentifier, statementCount, duckDBNativeConnection, profilingOptions);
-        queryProfilers[queryIdentifier] = queryProfiler;
+        var id = GetNextQueryId();
+
+        var queryProfiler = new QueryProfiler(id, statementCount, duckDBNativeConnection, profilingOptions);
+        queryProfilers[id] = queryProfiler;
         return queryProfiler;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int GetNextQueryId()
+    {
+        return Interlocked.Increment(ref nextQueryId);
     }
 
     internal void UpdateStatistics()
