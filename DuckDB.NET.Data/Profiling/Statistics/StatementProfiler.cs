@@ -49,7 +49,7 @@ internal sealed class StatementProfiler(int queryIndex, DuckDBNativeConnection c
                 return;
         }
 
-        var profile = new ProfilingInfo(duckDBNativeConnection);
+        using var profile = new ProfilingInfo(duckDBNativeConnection);
 
         if (profile.TryPrepare())
         {

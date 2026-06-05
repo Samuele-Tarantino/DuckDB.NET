@@ -11,6 +11,10 @@ internal sealed class ProfilingInfo: IDisposable
         this.connection = connection;
     }
 
+    /// <summary>
+    /// Tries to prepare the profiling info by retrieving it from the connection. Returns true if successful, false otherwise.
+    /// </summary>
+    /// <returns></returns>
     internal bool TryPrepare()
     {
         var profilingInfo = DuckDBProfilingInfoWrapper.GetProfilingInfo(connection);
@@ -24,13 +28,19 @@ internal sealed class ProfilingInfo: IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Gets the raw metrics as a dictionary of string key-value pairs. Throws an exception if the profiling info is not prepared.
+    /// </summary>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
     internal Dictionary<string, string> GetRawMetrics()
     {
         if (duckDBProfilingInfoWrapper == null)
         {
-            throw new InvalidOperationException("Profiling info is not prepared. Call Prepare() first.");
+            throw new InvalidOperationException("Profiling info is not prepared. Call TryPrepare() first.");
         }
-        var metricsValue = duckDBProfilingInfoWrapper.GetMetrics();
+
+        using var metricsValue = duckDBProfilingInfoWrapper.GetMetrics();
         if (metricsValue.IsNull())
         {
             return [];

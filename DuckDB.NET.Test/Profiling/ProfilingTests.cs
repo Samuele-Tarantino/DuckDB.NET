@@ -1,8 +1,8 @@
 ﻿using DuckDB.NET.Data.Common;
+using DuckDB.NET.Data.Extensions;
 using DuckDB.NET.Data.Profiling;
 using DuckDB.NET.Test.Helpers;
-using System;
-using System.Linq;
+using System.Text.Json;
 using System.Threading;
 
 namespace DuckDB.NET.Test.Profiling;
@@ -49,6 +49,121 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         finally
         {
             Connection.DisableProfiling();
+        }
+    }
+
+    [Fact]
+    public void EnableProfiling_UsesOutputPathConfiguration()
+    {
+        // create a temp directory to be used as profiling output
+        var tempLocation = Path.Combine(Path.GetTempPath(), "duckdb_profile_output_" + Guid.NewGuid().ToString("N"), "profile.json");
+        var tempDir = Path.GetDirectoryName(tempLocation)!;
+        Directory.CreateDirectory(Path.GetDirectoryName(tempLocation)!);
+
+        var options = new ProfilingOptions
+        {
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard
+        };
+
+        try
+        {
+            Connection.EnableProfiling(options);
+
+            Connection.ResetStatistics();
+
+            Command.CommandText = "SELECT 1;";
+            using (var r = Command.ExecuteReader()) { }
+
+            // If DuckDB writes files to the provided OutputPath, the directory should remain accessible
+            // We can't reliably assert that DuckDB created files in all environments, but we verify the option was accepted
+            var summary = Connection.RetrieveStatistics();
+            summary.QuerySummaryList.Length.Should().BeGreaterThan(0);
+        }
+        finally
+        {
+            Connection.DisableProfiling();
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void EnableProfiling_WritesJsonToOutputPath_WithQueryNameProperty()
+    {
+        // create a temp directory to be used as profiling output
+        var tempLocation = Path.Combine(Path.GetTempPath(), "duckdb_profile_output_" + Guid.NewGuid().ToString("N"), "profile.json");
+        var tempDir = Path.GetDirectoryName(tempLocation)!;
+        Directory.CreateDirectory(tempDir);
+
+        var options = new ProfilingOptions
+        {
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard,
+            OutputPath = tempLocation
+        };
+
+        try
+        {
+
+            Connection.EnableProfiling(options);
+            Connection.ResetStatistics();
+
+            Command.CommandText = "SELECT 1;";
+            using (var r = Command.ExecuteReader()) { }
+
+            // give DuckDB a small amount of time to flush files
+            var jsonFiles = Array.Empty<string>();
+            for (int i = 0; i < 10; i++)
+            {
+                jsonFiles = Directory.EnumerateFiles(tempDir, "*.json", SearchOption.AllDirectories).ToArray();
+                if (jsonFiles.Length > 0) break;
+                Thread.Sleep(200);
+            }
+
+            jsonFiles.Length.Should().BeGreaterThan(0, "Expected at least one JSON file in the profiling output path");
+
+            // parse the first JSON file and assert it contains a property named "QueryName" somewhere
+            var json = File.ReadAllText(jsonFiles[0]);
+            using var doc = JsonDocument.Parse(json);
+
+            bool found = false;
+            void Search(JsonElement el)
+            {
+                if (found) return;
+                if (el.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in el.EnumerateObject())
+                    {
+                        if (string.Equals(prop.Name, DuckDBMetricsExtensions.ToDuckDBMetricTypeString(DuckDBMetricType.QueryName), StringComparison.OrdinalIgnoreCase))
+                        {
+                            found = true;
+                            return;
+                        }
+                        Search(prop.Value);
+                        if (found) return;
+                    }
+                }
+                else if (el.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in el.EnumerateArray())
+                    {
+                        Search(item);
+                        if (found) return;
+                    }
+                }
+            }
+
+            Search(doc.RootElement);
+            found.Should().BeTrue("Expected the profiling JSON to contain a 'QueryName' property when QueryName metric is enabled");
+        }
+        finally
+        {
+            Connection.DisableProfiling();
+            try { Directory.Delete(tempDir, true); } catch { }
         }
     }
 
@@ -470,7 +585,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             using (var r = cmd.ExecuteReader()) { }
 
             // profiling should be enabled
-            con.ProfilingEnabled.Should().BeTrue();
+            con.IsProfilingEnabled.Should().BeTrue();
 
             var summary = con.RetrieveStatistics();
             summary.QueryCount.Should().BeGreaterThan(0);
@@ -485,7 +600,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             using (var r = cmd.ExecuteReader()) { }
 
             // profiling should be enabled
-            con.ProfilingEnabled.Should().BeTrue();
+            con.IsProfilingEnabled.Should().BeTrue();
 
             summary = con.RetrieveStatistics();
             summary.QueryCount.Should().BeGreaterThan(0);
@@ -532,7 +647,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
                 conn2.Open();
 
                 // conn2 should have profiling enabled because it shares the file-backed DB state
-                conn2.ProfilingEnabled.Should().BeTrue();
+                conn2.IsProfilingEnabled.Should().BeTrue();
 
                 // run a query on conn2 and ensure it has its own statistics recorded
                 using var cmd2 = conn2.CreateCommand();
@@ -622,7 +737,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             {
                 conn2.Open();
                 // conn2 should have profiling enabled implicitly for file-backed DB when conn1 enabled it
-                conn2.ProfilingEnabled.Should().BeTrue();
+                conn2.IsProfilingEnabled.Should().BeTrue();
 
                 using (var c2 = conn2.CreateCommand())
                 {

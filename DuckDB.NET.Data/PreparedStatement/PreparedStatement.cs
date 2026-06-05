@@ -75,7 +75,7 @@ internal sealed class PreparedStatement : IDisposable
 
                         throw new DuckDBException(errorMessage, UdfExceptionStore.Retrieve(connection));
                     }
-                } 
+                }
             }
             finally
             {

@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace DuckDB.NET.Data.Extensions
 {
-    internal static class MetricsExtensions
+    internal static class DuckDBMetricsExtensions
     {
         // Cache the snake_case conversions of DuckDBProfilingFormat enum values for efficient lookup.
         private static readonly FrozenDictionary<DuckDBProfilingFormat, string> ProfilingFormatCache =
@@ -27,7 +27,7 @@ namespace DuckDB.NET.Data.Extensions
             ProfilingFormatCache.ToFrozenDictionary(kv => kv.Value, kv => kv.Key);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static string ToDuckDBMetricString(this DuckDBMetricTypeCollection metrics)
+        internal static string ToDuckDBMetricTypeCollectionString(this DuckDBMetricTypeCollection metrics)
         {
             return $"{{{string.Join(",", metrics.Select(m => $"\"{m.ToDuckDBMetricTypeString()}\": \"TRUE\""))}}}";
         }

@@ -11,7 +11,7 @@ public sealed class ProfilingInfoMetrics : Dictionary<DuckDBMetricType, object>
 
         foreach (var kvp in dict)
         {
-            if (MetricsExtensions.TryParseDuckDBMetricType(kvp.Key, out var metricType))
+            if (DuckDBMetricsExtensions.TryParseDuckDBMetricType(kvp.Key, out var metricType))
             {
                 result.Add(metricType, kvp.Value);
             }

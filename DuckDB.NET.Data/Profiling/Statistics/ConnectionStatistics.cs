@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace DuckDB.NET.Data.Profiling.Statistics;
 
-internal sealed class ConnectionStatistics : ExecutionProfiler
+internal sealed class ConnectionStatistics : ExecutionProfiler, IDisposable
 {
 
     // internal values that are not exposed through properties
@@ -99,6 +99,19 @@ internal sealed class ConnectionStatistics : ExecutionProfiler
     private int GetNextQueryId()
     {
         return Interlocked.Increment(ref nextQueryId);
+    }
+
+    /// <summary>
+    /// Stops all active timers for the connection and its associated query profilers, recording their elapsed times.
+    /// </summary>
+    public override void StopTimer()
+    {
+        foreach (var profiler in queryProfilers.Values)
+        {
+            profiler?.StopTimer();
+        }
+
+        base.StopTimer();
     }
 
     internal void UpdateStatistics()
