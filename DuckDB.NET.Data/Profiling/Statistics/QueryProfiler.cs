@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace DuckDB.NET.Data.Profiling.Statistics;
 
-internal sealed class QueryProfiler(IntPtr queryIdentifier, int statementCount, DuckDBNativeConnection connection, ProfilingOptions? profilingOptions)
+internal sealed class QueryProfiler(int queryIdentifier, int statementCount, DuckDBNativeConnection connection, ProfilingOptions? profilingOptions)
 : ExecutionProfiler(connection, profilingOptions)
 {
     private readonly StatementProfiler[] statementProfilers = new StatementProfiler[statementCount];
@@ -12,7 +12,7 @@ internal sealed class QueryProfiler(IntPtr queryIdentifier, int statementCount, 
 
     internal int StatementCount => statementCount;
 
-    internal IntPtr QueryIdentifier => queryIdentifier;
+    internal int QueryIdentifier => queryIdentifier;
 
     internal StatementProfiler CreateStatementProfiler(int index)
     {

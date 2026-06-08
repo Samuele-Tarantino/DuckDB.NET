@@ -11,6 +11,9 @@ param(
     [Alias('p')]
     [string[]]$MsBuildProperty,
 
+    [string]$PackageReleaseNotes,
+    [string]$PackageReleaseNotesFile,
+
     [string]$VersionFile = "build/irion.version",
     [string]$Configuration = "Release",
     [string]$NuGetSource = "Repository",
@@ -315,7 +318,7 @@ function Get-MsBuildPropertyArguments {
         return @()
     }
 
-    $args = New-Object System.Collections.Generic.List[string]
+    $propertyArgs = New-Object System.Collections.Generic.List[string]
     foreach ($property in $MsBuildProperty) {
         $trimmed = $property.Trim()
         if ([string]::IsNullOrWhiteSpace($trimmed)) {
@@ -323,14 +326,14 @@ function Get-MsBuildPropertyArguments {
         }
 
         if ($trimmed.StartsWith("/p:") -or $trimmed.StartsWith("-p:")) {
-            [void]$args.Add($trimmed)
+            [void]$propertyArgs.Add($trimmed)
         }
         else {
-            [void]$args.Add("/p:$trimmed")
+            [void]$propertyArgs.Add("/p:$trimmed")
         }
     }
 
-    return @($args)
+    return @($propertyArgs)
 }
 
 function Invoke-Clean {
@@ -346,6 +349,17 @@ function Invoke-Clean {
         "-c", $Configuration,
         "/p:BuildType=Full"
     )
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotes)) {
+        $bindingsArgs += "/p:PackageReleaseNotes=$PackageReleaseNotes"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotesFile)) {
+        $resolved = Resolve-RepoPath -Path $PackageReleaseNotesFile
+        if (-not (Test-Path $resolved)) { throw "PackageReleaseNotesFile not found: $resolved" }
+        $leaf = Split-Path -Leaf $resolved
+        $bindingsArgs += "/p:IncludeReleaseNotesFromRepoRoot=true"
+        $bindingsArgs += "/p:PackageReadmeFile=$leaf"
+    }
+    
     $bindingsArgs += $msBuildPropertyArgs
     Invoke-DotNet -Arguments $bindingsArgs
 
@@ -355,6 +369,17 @@ function Invoke-Clean {
         "-c", $Configuration,
         "/p:BuildType=Full"
     )
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotes)) {
+        $dataArgs += "/p:PackageReleaseNotes=$PackageReleaseNotes"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotesFile)) {
+        $resolved = Resolve-RepoPath -Path $PackageReleaseNotesFile
+        if (-not (Test-Path $resolved)) { throw "PackageReleaseNotesFile not found: $resolved" }
+        $leaf = Split-Path -Leaf $resolved
+        $dataArgs += "/p:IncludeReleaseNotesFromRepoRoot=true"
+        $dataArgs += "/p:PackageReadmeFile=$leaf"
+    }
+    
     $dataArgs += $msBuildPropertyArgs
     Invoke-DotNet -Arguments $dataArgs
 }
@@ -420,6 +445,17 @@ function Invoke-Pack {
         "/p:InformationalVersion=$PackageVersion",
         "/p:PackageVersion=$nuGetPackageVersion"
     )
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotes)) {
+        $bindingsArgs += "/p:PackageReleaseNotes=$PackageReleaseNotes"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotesFile)) {
+        $resolved = Resolve-RepoPath -Path $PackageReleaseNotesFile
+        if (-not (Test-Path $resolved)) { throw "PackageReleaseNotesFile not found: $resolved" }
+        $repoReleaseNote = Join-Path $repoRoot 'RELEASE-NOTE.md'
+        if ($resolved -ne $repoReleaseNote) { throw "PackageReleaseNotesFile must be RELEASE-NOTE.md at the repository root for props-based inclusion. Move it to repo root or omit this parameter." }
+        $bindingsArgs += "/p:IncludeReleaseNotesFromRepoRoot=true"
+        $bindingsArgs += "/p:PackageReadmeFile=RELEASE-NOTE.md"
+    }
     $bindingsArgs += $msBuildPropertyArgs
     Invoke-DotNet -Arguments $bindingsArgs
 
@@ -433,6 +469,17 @@ function Invoke-Pack {
         "/p:InformationalVersion=$PackageVersion",
         "/p:PackageVersion=$nuGetPackageVersion"
     )
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotes)) {
+        $dataArgs += "/p:PackageReleaseNotes=$PackageReleaseNotes"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotesFile)) {
+        $resolved = Resolve-RepoPath -Path $PackageReleaseNotesFile
+        if (-not (Test-Path $resolved)) { throw "PackageReleaseNotesFile not found: $resolved" }
+        $repoReleaseNote = Join-Path $repoRoot 'RELEASE-NOTE.md'
+        if ($resolved -ne $repoReleaseNote) { throw "PackageReleaseNotesFile must be RELEASE-NOTE.md at the repository root for props-based inclusion. Move it to repo root or omit this parameter." }
+        $dataArgs += "/p:IncludeReleaseNotesFromRepoRoot=true"
+        $dataArgs += "/p:PackageReadmeFile=RELEASE-NOTE.md"
+    }
     $dataArgs += $msBuildPropertyArgs
     Invoke-DotNet -Arguments $dataArgs
 }
@@ -465,7 +512,7 @@ function Invoke-Push {
 function Get-RemoteVersions {
     param([Parameter(Mandatory = $true)][string]$PackageId)
 
-    $args = @(
+    $propertyArgs = @(
         "package",
         "search",
         $PackageId,
@@ -476,18 +523,18 @@ function Get-RemoteVersions {
     )
 
     if ($IncludePrerelease) {
-        $args += "--prerelease"
+        $propertyArgs += "--prerelease"
     }
 
     if ($Interactive) {
-        $args += "--interactive"
+        $propertyArgs += "--interactive"
     }
 
     if (-not [string]::IsNullOrWhiteSpace($ConfigFile)) {
-        $args += @("--configfile", (Resolve-RepoPath -Path $ConfigFile))
+        $propertyArgs += @("--configfile", (Resolve-RepoPath -Path $ConfigFile))
     }
 
-    $output = Invoke-DotNetCapture -Arguments $args
+    $output = Invoke-DotNetCapture -Arguments $propertyArgs
     $outputText = ($output -join [Environment]::NewLine).Trim()
     $jsonStart = $outputText.IndexOf("{")
     if ($jsonStart -lt 0) {

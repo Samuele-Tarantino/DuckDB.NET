@@ -1,6 +1,5 @@
 using DuckDB.NET.Data.Connection;
 using DuckDB.NET.Data.Profiling.Statistics;
-using Microsoft.VisualBasic;
 using System.Linq;
 
 namespace DuckDB.NET.Data.PreparedStatement;
@@ -36,7 +35,8 @@ internal sealed class PreparedStatement : IDisposable
                 throw new DuckDBException(error);
             }
 
-            try {
+            try
+            {
 
                 for (int index = 0; index < statementCount; index++)
                 {

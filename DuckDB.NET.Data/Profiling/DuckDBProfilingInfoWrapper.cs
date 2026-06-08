@@ -19,7 +19,6 @@ public class DuckDBProfilingInfoWrapper : IDisposable
         var handle = NativeMethods.ProfilingInfo.DuckDBGetProfilingInfo(connection);
         if (handle.IsInvalid || handle.IsClosed)
         {
-            Console.WriteLine("No profiling info");
             return null;
         }
         return new DuckDBProfilingInfoWrapper(handle);

@@ -100,7 +100,7 @@ Current version:
 Set explicit version:
 
 ```powershell
-.\scripts\irion-package.ps1 -Command set -Version 1.5.2.2-rc.2
+.\scripts\irion-package.ps1 -Command set -Version 1.5.2.2-rc.3
 ```
 
 Bump version in `build/irion.version`:
@@ -151,6 +151,13 @@ Generated packages:
 
 - `DuckDB.NET.Bindings/bin/Release/Irion.DuckDB.NET.Bindings.Full.<nuget-version>.nupkg`
 - `DuckDB.NET.Data/bin/Release/Irion.DuckDB.NET.Data.Full.<nuget-version>.nupkg`
+
+if `-PackageReleaseNotes` or `-PackageReleaseNotesFile` are provided, the content is included in the generated `.nupkg` metadata and visible on NuGet.org.
+
+```powershell
+.\scripts\irion-package.ps1 -Command pack -PackageReleaseNotes "Introduced support for DuckDB ProfilingInfo feature." -PackageReleaseNotesFile "RELEASE-NOTE.md"
+```
+
 
 #### 5. Push packages to feed
 
