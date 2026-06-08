@@ -180,9 +180,9 @@ function Get-BumpedVersion {
             else {
                 $label = $s.Substring(0, $lastDot)
                 $tail = $s.Substring($lastDot + 1)
-                if ([int]::TryParse($tail, [ref]$null)) {
-                    $num = [int]$tail
-                    $newSuffix = "$label.$($num + 1)"
+                $tailNum = 0
+                if ([int]::TryParse($tail, [ref]$tailNum)) {
+                    $newSuffix = "$label.$($tailNum + 1)"
                 }
                 else {
                     # tail is not numeric; append .1
