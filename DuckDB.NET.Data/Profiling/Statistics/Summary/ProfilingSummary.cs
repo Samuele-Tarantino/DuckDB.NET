@@ -6,7 +6,7 @@ public readonly record struct ProfilingSummary(
     double ConnectionTimeMilliseconds,
     double ExecutionTimeMilliseconds,
     int QueryCount,
-    ProfilingQuerySummary[] QuerySummaryList)
+    ProfilingQuerySummary[]? QuerySummaryList)
 {
     public IDictionary<string, object> ToDictionary()
     {

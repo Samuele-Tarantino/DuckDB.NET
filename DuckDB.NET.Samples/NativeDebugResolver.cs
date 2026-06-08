@@ -10,13 +10,12 @@ internal static class NativeDebugResolver
     private static IntPtr _duckdbHandle;
     private static bool _initialized;
 
-    public static void Initialize()
+    public static void Initialize(string DuckDBDebugdllPath)
     {
         if (_initialized) return;
         _initialized = true;
 
-        //string repo = @"C:\Sources\Git\duckdb_scalarfs";
-        string repo = @"C:\Users\Lucap\Downloads\duckdb 5";
+        string repo = DuckDBDebugdllPath;
         string duckdbDir = Path.Combine(repo, "build", "debug", "src", "Debug");
 
         string duckdbPath = Path.Combine(duckdbDir, "duckdb.dll");

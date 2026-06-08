@@ -32,17 +32,17 @@ namespace DuckDB.NET.Samples
             PrintVersion();
 
 
-            //DapperSample();
+            DapperSample();
 
-            //AdoNetSamples();
+            AdoNetSamples();
 
-            //LowLevelBindingsSample();
+            LowLevelBindingsSample();
 
-            //BulkDataLoad();
+            BulkDataLoad();
 
-            //ParametersBinding();
+            ParametersBinding();
 
-            Profiling();
+            //Profiling();
         }
 
         private static void PrintVersion()
@@ -275,9 +275,6 @@ namespace DuckDB.NET.Samples
 
             con.Open();
 
-            var before = con.RetrieveStatistics();
-            var beforeCount = before.QuerySummaryList.Length;
-
             var id = Guid.NewGuid().ToString("N");
 
             using var dBCommand = con.CreateCommand();
@@ -289,8 +286,6 @@ namespace DuckDB.NET.Samples
             using var cmd = con.CreateCommand();
             cmd.CommandText = "SELECT a:1;";
             using var reader = cmd.ExecuteReader();
-            //while (reader.Read()) { };
-            //while (reader.NextResult()) { };
             
             var metrics = con.RetrieveStatistics();
 
@@ -299,18 +294,15 @@ namespace DuckDB.NET.Samples
 
             metrics = con.RetrieveStatistics();
 
-            Console.WriteLine($"QuerySummaryList: {metrics.QuerySummaryList.Length}");
+            Console.WriteLine($"QuerySummaryList: {metrics.QuerySummaryList?.Length}");
 
             cmd.CommandText = $"PRAGMA tpch(2); CREATE TABLE test (id int);";
             cmd.ExecuteNonQuery();
 
             metrics = con.RetrieveStatistics();
-            Console.WriteLine($"QuerySummaryList: {metrics.QuerySummaryList.Length}");
+            Console.WriteLine($"QuerySummaryList: {metrics.QuerySummaryList?.Length}");
 
             PrintMetrics(metrics);
-
-            //PrintQueryResults(reader);
-
         }
 
         private static void LoadTpch(DuckDBConnection connection, int scaleFactor = 1)
