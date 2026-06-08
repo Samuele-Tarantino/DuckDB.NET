@@ -3,5 +3,6 @@
   <Project Path="DuckDB.NET.Data/Data.csproj" />
   <Project Path="DuckDB.NET.Samples/Samples.csproj" />
   <Project Path="DuckDB.NET.Test/Test.csproj" />
+  <Project Path="Irion.DuckDB.NET.Benchmark/Irion.DuckDB.NET.Benchmark.csproj" />
   <Project Path="Irion.DuckDB.NET.Test/Irion.DuckDB.NET.Test.csproj" />
 </Solution>

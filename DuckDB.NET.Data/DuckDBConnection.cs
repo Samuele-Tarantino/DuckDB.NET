@@ -1,4 +1,7 @@
 ﻿using DuckDB.NET.Data.Connection;
+using DuckDB.NET.Data.Profiling;
+using DuckDB.NET.Data.Profiling.Statistics;
+using DuckDB.NET.Data.Profiling.Statistics.Summary;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -12,9 +15,13 @@ public partial class DuckDBConnection : DbConnection
     private DuckDBConnectionString? parsedConnection;
     private ConnectionReference? connectionReference;
     private bool inMemoryDuplication = false;
-    
     private static readonly StateChangeEventArgs FromClosedToOpenEventArgs = new(ConnectionState.Closed, ConnectionState.Open);
     private static readonly StateChangeEventArgs FromOpenToClosedEventArgs = new(ConnectionState.Open, ConnectionState.Closed);
+
+    // Statistics support
+    private ConnectionStatistics? statistics;
+    private bool profilingEnabled;
+    private ProfilingOptions? profilingOptions;
 
     #region Protected Properties
 
@@ -72,6 +79,12 @@ public partial class DuckDBConnection : DbConnection
     public DuckDBNativeConnection NativeConnection => connectionReference?.NativeConnection
                                                       ?? throw new InvalidOperationException("The DuckDBConnection must be open to access the native connection.");
 
+    /// <summary>
+    /// Gets the underlying native DuckDB database instance associated with the current connection.
+    /// </summary>
+    public DuckDBDatabase NativeDatabase => connectionReference?.FileReferenceCounter.Database
+                                              ?? throw new InvalidOperationException("The DuckDBConnection must be open to access the native database.");
+
     public override string ServerVersion => NativeMethods.Startup.DuckDBLibraryVersion();
 
     public override ConnectionState State => connectionState;
@@ -93,7 +106,10 @@ public partial class DuckDBConnection : DbConnection
             connectionManager.ReturnConnectionReference(connectionReference);
         }
 
+        UpdateStatistics();
+
         connectionState = ConnectionState.Closed;
+
         OnStateChange(FromOpenToClosedEventArgs);
     }
 
@@ -109,6 +125,22 @@ public partial class DuckDBConnection : DbConnection
                                                   : connectionManager.GetConnectionReference(ParsedConnection);
 
         connectionState = ConnectionState.Open;
+
+        // If profilingOptions has no explicit value for this connection, inherit the file-backed DB settings.
+        // Otherwise persist the explicit options to the shared FileReference so other connections see them.
+        if (!profilingOptions.HasValue)
+        {
+            profilingEnabled = connectionReference.FileReferenceCounter.IsProfilingEnabled;
+            profilingOptions = connectionReference.FileReferenceCounter.ProfilingOptions;
+        }
+        else
+        {
+            connectionReference.FileReferenceCounter.IsProfilingEnabled = profilingEnabled;
+            connectionReference.FileReferenceCounter.ProfilingOptions = profilingOptions.Value;
+        }
+
+        InitProfiling();
+
         OnStateChange(FromClosedToOpenEventArgs);
     }
 
@@ -184,7 +216,7 @@ public partial class DuckDBConnection : DbConnection
     /// <typeparam name="TMap">The AppenderMap type defining the mappings</typeparam>
     /// <param name="table">The table name</param>
     /// <returns>A type-safe mapped appender</returns>
-    public DuckDBMappedAppender<T, TMap> CreateAppender<T, TMap>(string table) 
+    public DuckDBMappedAppender<T, TMap> CreateAppender<T, TMap>(string table)
         where TMap : Mapping.DuckDBAppenderMap<T>, new()
     {
         return CreateAppender<T, TMap>(null, null, table);
@@ -230,6 +262,8 @@ public partial class DuckDBConnection : DbConnection
             {
                 Close();
             }
+
+            statistics?.Dispose();
         }
 
         base.Dispose(disposing);
@@ -258,6 +292,8 @@ public partial class DuckDBConnection : DbConnection
             parsedConnection = ParsedConnection,
             inMemoryDuplication = true,
             connectionReference = connectionReference,
+            profilingEnabled = profilingEnabled,
+            profilingOptions = profilingOptions,
         };
 
         return duplicatedConnection;
@@ -277,4 +313,232 @@ public partial class DuckDBConnection : DbConnection
         EnsureConnectionOpen();
         return NativeMethods.Startup.DuckDBQueryProgress(NativeConnection);
     }
+
+    #region profiling
+
+    public bool IsProfilingEnabled => profilingEnabled;
+
+    /// <summary>
+    /// Retrieves a summary of the collected profiling statistics, including connection time, execution time, and any relevant metrics.
+    /// If profiling is not enabled, this method will return an empty summary.
+    /// </summary>
+    /// <returns>A <see cref="ProfilingSummary"/> containing the collected statistics.</returns>
+    public ProfilingSummary RetrieveStatistics()
+    {
+        if (statistics != null)
+        {
+            UpdateStatistics();
+            return statistics.GetProfilingSummary();
+        }
+        else
+        {
+            // Profiling not enabled for this connection
+            return new ProfilingSummary();
+        }
+    }
+
+    /// <summary>
+    /// Enables profiling for the current connection, optionally using the specified profiling options.
+    /// </summary>
+    /// <remarks>If profiling is enabled while the connection is already open, profiling is initialized immediately.
+    /// Otherwise, profiling will be initialized when the connection is opened.</remarks>
+    /// <param name="options">An optional set of profiling options to configure profiling behavior. If null, default options are used.</param>
+    public void EnableProfiling(ProfilingOptions? options = null)
+    {
+        profilingEnabled = true;
+        this.profilingOptions = options ?? new ProfilingOptions();  // use provided options or default options if null
+
+        if (connectionReference?.FileReferenceCounter is { } fileRefCounter)
+        {
+            fileRefCounter.IsProfilingEnabled = true;
+            fileRefCounter.ProfilingOptions = this.profilingOptions.Value;
+        }
+
+        if (State == ConnectionState.Open)
+        {
+            InitProfiling();
+        }
+    }
+
+    /// <summary>
+    /// Disables profiling for the current session, with an option to reset collected statistics.
+    /// </summary>
+    /// <remarks>If profiling is already disabled, calling this method has no effect. Resetting statistics
+    /// clears all previously collected profiling data, which cannot be recovered.</remarks>
+    /// <param name="resetStatistics">true to reset all collected profiling statistics after disabling profiling; otherwise, false.</param>
+    public void DisableProfiling(bool resetStatistics = false)
+    {
+        // stop
+        statistics?.StopTimer();
+
+        if (resetStatistics)
+        {
+            ResetStatistics();
+        }
+
+        DisableProfiling();
+    }
+
+    /// <summary>
+    /// Resets all collected profiling statistics to their initial state.
+    /// </summary>
+    /// <remarks>This method has no effect if profiling is not enabled. Use this method to clear accumulated
+    /// profiling data before starting a new measurement period.</remarks>
+    public void ResetStatistics()
+    {
+        if (IsProfilingEnabled)
+        {
+            statistics?.Reset();
+        }
+    }
+
+    /// <summary>
+    /// Initializes the profiling statistics for the current connection.
+    /// </summary>
+    /// <remarks>This method prepares internal data structures to collect and store profiling information
+    /// related to the connection's activity. It should be called before attempting to access profiling or statistics
+    /// data for the connection.</remarks>
+    private void InitProfiling()
+    {
+        EnsureConnectionOpen();
+
+        if (IsProfilingEnabled)
+        {
+            // Dispose any existing statistics instance to ensure fresh state and remove previous mapping
+            // from the global ConnectionStatistics cache.
+            try
+            {
+                statistics?.Dispose();
+            }
+            finally
+            {
+                statistics = new ConnectionStatistics(NativeConnection, profilingEnabled, this.profilingOptions);
+            }
+            LoadStatisticsProfile();
+        }
+    }
+
+    /// <summary>
+    /// Modifies the current profiling options used for collecting performance statistics.
+    /// </summary>
+    /// <param name="options">The new profiling options to apply. Cannot be null.</param>
+    /// <exception cref="InvalidOperationException">Thrown if profiling is not enabled when attempting to edit profiling options.</exception>
+    public void EditProfilingOptions(ProfilingOptions options)
+    {
+        if (!IsProfilingEnabled)
+        {
+            throw new InvalidOperationException("Profiling must be enabled to edit profiling options.");
+        }
+
+        this.profilingOptions = options;
+
+        if (connectionReference?.FileReferenceCounter is { } fileRefCounter)
+        {
+            fileRefCounter.ProfilingOptions = options;
+        }
+
+        statistics?.Reset();
+        LoadStatisticsProfile();
+    }
+
+    /// <summary>
+    /// Disables query profiling for the current database connection if profiling is enabled.
+    /// </summary>
+    /// <remarks>This method has no effect if profiling is already disabled. Disabling profiling may improve
+    /// performance for subsequent queries.</remarks>
+    /// <exception cref="DuckDBException">Thrown if an error occurs while disabling profiling on the database connection.</exception>
+    private void DisableProfiling()
+    {
+        if (IsProfilingEnabled && State == ConnectionState.Open)
+        {
+            var state = NativeMethods.Query.DuckDBQuery(NativeConnection, "CALL disable_profiling();", out var queryResult);
+            EnsureStateIsSuccess(state, queryResult, "Error disabling profiling.");
+
+            if (this.profilingOptions is { OutputPath: not null })
+            {
+                // If output path is set, we need to disable profiling at the end of each session to ensure the file is properly flushed and closed.
+                state = NativeMethods.Query.DuckDBQuery(NativeConnection, "SET profiling_output = ''", out var queryResult2);
+                EnsureStateIsSuccess(state, queryResult2, "Error disabling profiling.");
+            }
+        }
+
+        this.profilingOptions = null;
+
+        if (connectionReference?.FileReferenceCounter is { } fileRefCounter)
+        {
+            fileRefCounter.IsProfilingEnabled = false;
+            fileRefCounter.ProfilingOptions = null;
+        }
+
+        statistics?.DisableQueryExecutionTracing();
+        profilingEnabled = false;
+    }
+
+    /// <summary>
+    /// Configures and enables query profiling for the current database connection based on the specified profiling
+    /// options.
+    /// </summary>
+    /// <remarks>Profiling is only enabled for original in-memory connections; duplicated in-memory
+    /// connections share the same profiling state and are not reconfigured. This method applies settings such as
+    /// profiling format, coverage, mode, output path, and enabled metrics according to the current profiling
+    /// options.</remarks>
+    /// <exception cref="DuckDBException">Thrown if an error occurs while setting profiling configuration options.</exception>
+    private void LoadStatisticsProfile()
+    {
+        statistics?.StartTimer();
+
+        if (IsProfilingEnabled && profilingOptions is { } options)
+        {
+            // Build SQL and emit lightweight diagnostics to help reproduce issues when tests run together
+            var sql = ProfilingOptionsExtensions.ToDuckDBProfilingOptionString(options);
+
+            var state = NativeMethods.Query.DuckDBQuery(NativeConnection, sql, out var queryResult);
+            EnsureStateIsSuccess(state, queryResult, "Error configuring profiling settings.");
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void EnsureStateIsSuccess(DuckDBState state, DuckDBResult result, string fallbackMessage)
+    {
+        try
+        {
+            if (!state.IsSuccess())
+            {
+                var errorMessage = NativeMethods.Query.DuckDBResultError(ref result);
+                var errorType = NativeMethods.Query.DuckDBResultErrorType(ref result);
+
+                if (string.IsNullOrEmpty(errorMessage))
+                {
+                    errorMessage = fallbackMessage;
+                }
+
+                if (errorType == DuckDBErrorType.Interrupt)
+                {
+                    throw new OperationCanceledException();
+                }
+
+                var innerException = UdfExceptionStore.Retrieve(NativeConnection);
+                throw innerException != null
+                    ? new DuckDBException(errorMessage, innerException)
+                    : new DuckDBException(errorMessage, errorType);
+            }
+        }
+        finally
+        {
+            result.Close();
+        }
+    }
+
+    private void UpdateStatistics()
+    {
+        if (ConnectionState.Open == State)
+        {
+            // update timestamp
+            statistics?.StopTimer();
+        }
+
+        // delegate the rest of the work to the SqlStatistics class
+        statistics?.UpdateStatistics();
+    }
+    #endregion
 }

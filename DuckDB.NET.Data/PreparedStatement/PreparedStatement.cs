@@ -1,11 +1,13 @@
-using System.Linq;
 using DuckDB.NET.Data.Connection;
+using DuckDB.NET.Data.Profiling.Statistics;
+using System.Linq;
 
 namespace DuckDB.NET.Data.PreparedStatement;
 
 internal sealed class PreparedStatement : IDisposable
 {
     private readonly DuckDBPreparedStatement statement;
+    private StatementProfiler? statementProfiler;
 
     private PreparedStatement(DuckDBPreparedStatement statement)
     {
@@ -18,67 +20,119 @@ internal sealed class PreparedStatement : IDisposable
 
         using (extractedStatements)
         {
+            _ = ConnectionStatistics.TryGetFor(connection, out var stats);
+            // Initialize the query profiler for the entire batch of statements. The profiler will be responsible for tracking the execution of all statements within this batch.
+            var queryProfiler = stats?.CreateQueryProfiler(statementCount);
+            queryProfiler?.StartTimer();
+
             if (statementCount <= 0)
             {
                 var error = NativeMethods.ExtractStatements.DuckDBExtractStatementsError(extractedStatements);
+
+                queryProfiler?.SetState(DuckDBState.Error, DuckDBErrorType.Parser, error);
+                queryProfiler?.StopTimer();
+
                 throw new DuckDBException(error);
             }
 
-            for (int index = 0; index < statementCount; index++)
+            try
             {
-                var status = NativeMethods.ExtractStatements.DuckDBPrepareExtractedStatement(connection, extractedStatements, index, out var statement);
 
-                if (status.IsSuccess())
+                for (int index = 0; index < statementCount; index++)
                 {
-                    using var preparedStatement = new PreparedStatement(statement);
-                    yield return preparedStatement.Execute(parameters, useStreamingMode, connection);
-                }
-                else
-                {
-                    var errorMessage = NativeMethods.PreparedStatements.DuckDBPrepareError(statement);
+                    var status = NativeMethods.ExtractStatements.DuckDBPrepareExtractedStatement(connection, extractedStatements, index, out var statement);
 
-                    if (string.IsNullOrEmpty(errorMessage))
+                    var statementProfiler = queryProfiler?.CreateStatementProfiler(index);
+
+                    if (status.IsSuccess())
                     {
-                        errorMessage = "DuckDBQuery failed";
-                    }
+                        using var preparedStatement = new PreparedStatement(statement);
+                        preparedStatement.statementProfiler = statementProfiler;
 
-                    throw new DuckDBException(errorMessage, UdfExceptionStore.Retrieve(connection));
+                        var result = preparedStatement.Execute(parameters, useStreamingMode, connection);
+
+                        // Stop the query profiler after the last statement has been executed.
+                        // This ensures that the total execution time for the entire batch of statements is accurately captured
+                        // and not after the data retrieval of the last statement.
+                        if (index == statementCount - 1)
+                        {
+                            queryProfiler?.StopTimer();
+                        }
+
+                        yield return result;
+                    }
+                    else
+                    {
+                        var errorMessage = NativeMethods.PreparedStatements.DuckDBPrepareError(statement);
+
+                        if (string.IsNullOrEmpty(errorMessage))
+                        {
+                            errorMessage = "DuckDBQuery failed";
+                        }
+
+                        // Initialize the statement profiler for the current statement. This allows for detailed profiling of each individual statement within the batch
+                        statementProfiler?.SetState(status, errorMessage);
+
+                        throw new DuckDBException(errorMessage, UdfExceptionStore.Retrieve(connection));
+                    }
                 }
+            }
+            finally
+            {
+                // Ensure that the query profiler is stopped in case of any exceptions during statement preparation or execution.
+                queryProfiler?.StopTimer();
             }
         }
     }
 
     private DuckDBResult Execute(DuckDBParameterCollection parameterCollection, bool useStreamingMode, DuckDBNativeConnection connection)
     {
-        BindParameters(statement, parameterCollection);
+        // Start the statement profiler timer to measure the execution time of this statement.
+        // The profiler will also capture any relevant metrics or state changes during execution.
+        var profiler = this.statementProfiler;
+        profiler?.StartTimer();
 
-        var status = useStreamingMode
-            ? NativeMethods.PreparedStatements.DuckDBExecutePreparedStreaming(statement, out var queryResult)
-            : NativeMethods.PreparedStatements.DuckDBExecutePrepared(statement, out queryResult);
-
-        if (!status.IsSuccess())
+        try
         {
-            var errorMessage = NativeMethods.Query.DuckDBResultError(ref queryResult);
-            var errorType = NativeMethods.Query.DuckDBResultErrorType(ref queryResult);
-            queryResult.Close();
 
-            if (string.IsNullOrEmpty(errorMessage))
+            BindParameters(statement, parameterCollection);
+
+            var status = useStreamingMode
+                ? NativeMethods.PreparedStatements.DuckDBExecutePreparedStreaming(statement, out var queryResult)
+                : NativeMethods.PreparedStatements.DuckDBExecutePrepared(statement, out queryResult);
+
+            if (!status.IsSuccess())
             {
-                errorMessage = "DuckDB execution failed";
+                var errorMessage = NativeMethods.Query.DuckDBResultError(ref queryResult);
+                var errorType = NativeMethods.Query.DuckDBResultErrorType(ref queryResult);
+                queryResult.Close();
+
+                if (string.IsNullOrEmpty(errorMessage))
+                {
+                    errorMessage = "DuckDB execution failed";
+                }
+
+                profiler?.SetState(status, errorType, errorMessage);
+
+                if (errorType == DuckDBErrorType.Interrupt)
+                {
+                    throw new OperationCanceledException();
+                }
+
+                var innerException = UdfExceptionStore.Retrieve(connection);
+                throw innerException != null
+                    ? new DuckDBException(errorMessage, innerException)
+                    : new DuckDBException(errorMessage, errorType);
             }
 
-            if (errorType == DuckDBErrorType.Interrupt)
-            {
-                throw new OperationCanceledException();
-            }
+            profiler?.AcquireMetrics();
 
-            var innerException = UdfExceptionStore.Retrieve(connection);
-            throw innerException != null
-                ? new DuckDBException(errorMessage, innerException)
-                : new DuckDBException(errorMessage, errorType);
+            return queryResult;
         }
-
-        return queryResult;
+        finally
+        {
+            profiler?.StopTimer();
+        }
     }
 
     private static void BindParameters(DuckDBPreparedStatement preparedStatement, DuckDBParameterCollection parameterCollection)

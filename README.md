@@ -100,16 +100,17 @@ Current version:
 Set explicit version:
 
 ```powershell
-.\scripts\irion-package.ps1 -Command set -Version 1.4.4.2
+.\scripts\irion-package.ps1 -Command set -Version 1.5.2.2
 ```
 
 Bump version in `build/irion.version`:
 
 ```powershell
-.\scripts\irion-package.ps1 -Command bump -Part revision  # 1.4.4.1 -> 1.4.4.2
-.\scripts\irion-package.ps1 -Command bump -Part build     # 1.4.4.1 -> 1.4.5.0
-.\scripts\irion-package.ps1 -Command bump -Part minor     # 1.4.4.1 -> 1.5.0.0
-.\scripts\irion-package.ps1 -Command bump -Part major     # 1.4.4.1 -> 2.0.0.0
+.\scripts\irion-package.ps1 -Command bump -Part prerelease # 1.4.4.0-alpha.1 -> 1.4.4.0-alpha.2
+# .\scripts\irion-package.ps1 -Command bump -Part revision  # 1.4.4.1 -> 1.4.4.2
+# .\scripts\irion-package.ps1 -Command bump -Part build     # 1.4.4.1 -> 1.4.5.0
+# .\scripts\irion-package.ps1 -Command bump -Part minor     # 1.4.4.1 -> 1.5.0.0
+# .\scripts\irion-package.ps1 -Command bump -Part major     # 1.4.4.1 -> 2.0.0.0
 ```
 
 Check latest published versions on the configured feed:
@@ -127,7 +128,7 @@ You can override package IDs if needed:
 #### 3. Build (Full)
 
 ```powershell
-.\scripts\irion-package.ps1 -Command build
+.\scripts\irion-package.ps1 -Command build -p "NativeDownloadRetries=30","NativeDownloadRetryDelayMilliseconds=15000"
 ```
 
 The build command runs a full `dotnet clean` for both Irion projects before building.
@@ -150,6 +151,13 @@ Generated packages:
 
 - `DuckDB.NET.Bindings/bin/Release/Irion.DuckDB.NET.Bindings.Full.<nuget-version>.nupkg`
 - `DuckDB.NET.Data/bin/Release/Irion.DuckDB.NET.Data.Full.<nuget-version>.nupkg`
+
+if `-PackageReleaseNotes` or `-PackageReleaseNotesFile` are provided, the content is included in the generated `.nupkg` metadata and visible on NuGet.org.
+
+```powershell
+.\scripts\irion-package.ps1 -Command pack -PackageReleaseNotes "New feature short description" -PackageReleaseNotesFile "RELEASE-NOTE.md"
+```
+
 
 #### 5. Push packages to feed
 

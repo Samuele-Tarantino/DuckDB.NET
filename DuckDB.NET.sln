@@ -20,6 +20,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test", "DuckDB.NET.Test\Tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Irion.DuckDB.NET.Test", "Irion.DuckDB.NET.Test\Irion.DuckDB.NET.Test.csproj", "{6D707558-05DF-4DA6-9203-F79BA634D4D2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Irion.DuckDB.NET.Benchmark", "Irion.DuckDB.NET.Benchmark\Irion.DuckDB.NET.Benchmark.csproj", "{7A7A7A7A-7777-7777-7777-777777777777}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -46,6 +48,10 @@ Global
 		{6D707558-05DF-4DA6-9203-F79BA634D4D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6D707558-05DF-4DA6-9203-F79BA634D4D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6D707558-05DF-4DA6-9203-F79BA634D4D2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A7A7A7A-7777-7777-7777-777777777777}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A7A7A7A-7777-7777-7777-777777777777}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A7A7A7A-7777-7777-7777-777777777777}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A7A7A7A-7777-7777-7777-777777777777}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

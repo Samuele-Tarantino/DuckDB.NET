@@ -5,8 +5,14 @@ param(
 
     [string]$Version,
 
-    [ValidateSet("major", "minor", "build", "revision")]
+    [ValidateSet("major", "minor", "build", "revision", "prerelease")]
     [string]$Part = "revision",
+
+    [Alias('p')]
+    [string[]]$MsBuildProperty,
+
+    [string]$PackageReleaseNotes,
+    [string]$PackageReleaseNotesFile,
 
     [string]$VersionFile = "build/irion.version",
     [string]$Configuration = "Release",
@@ -55,11 +61,45 @@ function Parse-VersionString {
     $trimmed = $VersionString.Trim()
     $parsed = $null
 
-    if (-not [Version]::TryParse($trimmed, [ref]$parsed)) {
-        throw "Invalid version '$VersionString'. Expected format like '1.4.4.1'."
+    # Allow SemVer-style prerelease or build metadata (e.g. 1.5.2-alpha.1 or 1.5.2+meta)
+    # by extracting the numeric core before any '-' (prerelease) or '+' (build metadata).
+    $numericPart = ($trimmed -split '[-+]')[0]
+
+    if (-not [Version]::TryParse($numericPart, [ref]$parsed)) {
+        throw "Invalid version '$VersionString'. Expected numeric format like '1.4.4.1' or semver with prerelease like '1.4.4-alpha.1'."
     }
 
     return (Normalize-Version -ParsedVersion $parsed)
+}
+
+function Split-SemVersion {
+    param([Parameter(Mandatory = $true)][string]$VersionString)
+
+    $raw = $VersionString.Trim()
+    $sepIndex = -1
+    for ($i = 0; $i -lt $raw.Length; $i++) {
+        if ($raw[$i] -eq '-' -or $raw[$i] -eq '+') { $sepIndex = $i; break }
+    }
+
+    if ($sepIndex -ge 0) {
+        $numericPart = $raw.Substring(0, $sepIndex)
+        $suffix = $raw.Substring($sepIndex) # includes leading '-' or '+'
+    }
+    else {
+        $numericPart = $raw
+        $suffix = ''
+    }
+
+    $parsed = $null
+    if (-not [Version]::TryParse($numericPart, [ref]$parsed)) {
+        throw "Invalid version '$VersionString'. Expected numeric format like '1.4.4.1' or semver with prerelease like '1.4.4-alpha.1'."
+    }
+
+    return [PSCustomObject]@{
+        Raw = $raw
+        Numeric = (Normalize-Version -ParsedVersion $parsed)
+        Suffix = $suffix
+    }
 }
 
 function Get-VersionFilePath {
@@ -69,13 +109,19 @@ function Get-VersionFilePath {
 function Get-NuGetPackageVersion {
     param([Parameter(Mandatory = $true)][string]$VersionString)
 
-    $version = Parse-VersionString -VersionString $VersionString
+    $parts = Split-SemVersion -VersionString $VersionString
+    $version = $parts.Numeric
+    $suffix = $parts.Suffix
+
+    # NuGet supports prerelease suffixes (with '-') but not build metadata ('+' section),
+    # so drop '+'-prefixed suffixes and keep '-'-prefixed prerelease identifiers.
+    if ($suffix.StartsWith('+')) { $suffix = '' }
 
     if ($version.Revision -eq 0) {
-        return $version.ToString(3)
+        return ($version.ToString(3) + $suffix)
     }
 
-    return $version.ToString(4)
+    return ($version.ToString(4) + $suffix)
 }
 
 function Get-CurrentVersion {
@@ -86,13 +132,16 @@ function Get-CurrentVersion {
     }
 
     $rawValue = Get-Content -Path $versionFilePath -Raw
-    return (Parse-VersionString -VersionString $rawValue).ToString(4)
+    return $rawValue.Trim()
 }
 
 function Save-Version {
     param([Parameter(Mandatory = $true)][string]$VersionToSave)
 
-    $normalizedVersion = (Parse-VersionString -VersionString $VersionToSave).ToString(4)
+    $trimmed = $VersionToSave.Trim()
+    # Validate semver but preserve the original string (including prerelease) in file
+    [void](Split-SemVersion -VersionString $trimmed)
+
     $versionFilePath = Get-VersionFilePath
     $parentDir = Split-Path -Parent $versionFilePath
 
@@ -100,8 +149,8 @@ function Save-Version {
         New-Item -Path $parentDir -ItemType Directory -Force | Out-Null
     }
 
-    Set-Content -Path $versionFilePath -Value $normalizedVersion -NoNewline
-    return $normalizedVersion
+    Set-Content -Path $versionFilePath -Value $trimmed -NoNewline
+    return $trimmed
 }
 
 function Get-BumpedVersion {
@@ -110,13 +159,42 @@ function Get-BumpedVersion {
         [Parameter(Mandatory = $true)][string]$BumpPart
     )
 
-    $version = Parse-VersionString -VersionString $CurrentVersion
+    $parts = Split-SemVersion -VersionString $CurrentVersion
+    $version = $parts.Numeric
+    $suffix = $parts.Suffix
 
     switch ($BumpPart) {
         "major" { return [Version]::new($version.Major + 1, 0, 0, 0).ToString(4) }
         "minor" { return [Version]::new($version.Major, $version.Minor + 1, 0, 0).ToString(4) }
         "build" { return [Version]::new($version.Major, $version.Minor, $version.Build + 1, 0).ToString(4) }
         "revision" { return [Version]::new($version.Major, $version.Minor, $version.Build, $version.Revision + 1).ToString(4) }
+        "prerelease" {
+            if ([string]::IsNullOrEmpty($suffix) -or $suffix.StartsWith('+')) {
+                throw "No prerelease suffix to bump for version '$CurrentVersion'."
+            }
+
+            # strip leading '-'
+            $s = $suffix.Substring(1)
+            $lastDot = $s.LastIndexOf('.')
+            if ($lastDot -lt 0) {
+                # no numeric tail, append .1
+                $newSuffix = "$s.1"
+            }
+            else {
+                $label = $s.Substring(0, $lastDot)
+                $tail = $s.Substring($lastDot + 1)
+                $tailNum = 0
+                if ([int]::TryParse($tail, [ref]$tailNum)) {
+                    $newSuffix = "$label.$($tailNum + 1)"
+                }
+                else {
+                    # tail is not numeric; append .1
+                    $newSuffix = "$s.1"
+                }
+            }
+
+            return ($version.ToString(4) + '-' + $newSuffix)
+        }
         default { throw "Unsupported bump part '$BumpPart'." }
     }
 }
@@ -235,83 +313,175 @@ function Set-PackageVersionEnvironment {
     Write-Host "DUCKDB_VERSION_BUILD=$env:DUCKDB_VERSION_BUILD"
 }
 
+function Get-MsBuildPropertyArguments {
+    if ($null -eq $MsBuildProperty -or $MsBuildProperty.Count -eq 0) {
+        return @()
+    }
+
+    $propertyArgs = New-Object System.Collections.Generic.List[string]
+    foreach ($property in $MsBuildProperty) {
+        $trimmed = $property.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
+            continue
+        }
+
+        if ($trimmed.StartsWith("/p:") -or $trimmed.StartsWith("-p:")) {
+            [void]$propertyArgs.Add($trimmed)
+        }
+        else {
+            [void]$propertyArgs.Add("/p:$trimmed")
+        }
+    }
+
+    return @($propertyArgs)
+}
+
 function Invoke-Clean {
     param([Parameter(Mandatory = $true)][string]$PackageVersion)
 
     $projects = Get-ProjectPaths
+    $msBuildPropertyArgs = Get-MsBuildPropertyArguments
     Set-PackageVersionEnvironment -PackageVersion $PackageVersion
 
-    Invoke-DotNet -Arguments @(
+    $bindingsArgs = @(
         "clean",
         $projects.Bindings,
         "-c", $Configuration,
         "/p:BuildType=Full"
     )
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotes)) {
+        $bindingsArgs += "/p:PackageReleaseNotes=$PackageReleaseNotes"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotesFile)) {
+        $resolved = Resolve-RepoPath -Path $PackageReleaseNotesFile
+        if (-not (Test-Path $resolved)) { throw "PackageReleaseNotesFile not found: $resolved" }
+        $leaf = Split-Path -Leaf $resolved
+        $bindingsArgs += "/p:IncludeReleaseNotesFromRepoRoot=true"
+        $bindingsArgs += "/p:PackageReadmeFile=$leaf"
+    }
+    
+    $bindingsArgs += $msBuildPropertyArgs
+    Invoke-DotNet -Arguments $bindingsArgs
 
-    Invoke-DotNet -Arguments @(
+    $dataArgs = @(
         "clean",
         $projects.Data,
         "-c", $Configuration,
         "/p:BuildType=Full"
     )
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotes)) {
+        $dataArgs += "/p:PackageReleaseNotes=$PackageReleaseNotes"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotesFile)) {
+        $resolved = Resolve-RepoPath -Path $PackageReleaseNotesFile
+        if (-not (Test-Path $resolved)) { throw "PackageReleaseNotesFile not found: $resolved" }
+        $leaf = Split-Path -Leaf $resolved
+        $dataArgs += "/p:IncludeReleaseNotesFromRepoRoot=true"
+        $dataArgs += "/p:PackageReadmeFile=$leaf"
+    }
+    
+    $dataArgs += $msBuildPropertyArgs
+    Invoke-DotNet -Arguments $dataArgs
 }
 
 function Invoke-Build {
     param([Parameter(Mandatory = $true)][string]$PackageVersion)
 
     $projects = Get-ProjectPaths
+    $msBuildPropertyArgs = Get-MsBuildPropertyArguments
+    $versionParts = Split-SemVersion -VersionString $PackageVersion
+    $assemblyVersion = $versionParts.Numeric.ToString(4)
     $nuGetPackageVersion = Get-NuGetPackageVersion -VersionString $PackageVersion
     Set-PackageVersionEnvironment -PackageVersion $PackageVersion
+    Write-Host "AssemblyVersion=$assemblyVersion"
     Write-Host "NuGetPackageVersion=$nuGetPackageVersion"
 
-    Invoke-DotNet -Arguments @(
+    $bindingsArgs = @(
         "build",
         $projects.Bindings,
         "-c", $Configuration,
         "/p:BuildType=Full",
-        "/p:Version=$PackageVersion",
-        "/p:FileVersion=$PackageVersion",
+        "/p:Version=$assemblyVersion",
+        "/p:FileVersion=$assemblyVersion",
+        "/p:InformationalVersion=$PackageVersion",
         "/p:PackageVersion=$nuGetPackageVersion"
     )
+    $bindingsArgs += $msBuildPropertyArgs
+    Invoke-DotNet -Arguments $bindingsArgs
 
-    Invoke-DotNet -Arguments @(
+    $dataArgs = @(
         "build",
         $projects.Data,
         "-c", $Configuration,
         "/p:BuildType=Full",
-        "/p:Version=$PackageVersion",
-        "/p:FileVersion=$PackageVersion",
+        "/p:Version=$assemblyVersion",
+        "/p:FileVersion=$assemblyVersion",
+        "/p:InformationalVersion=$PackageVersion",
         "/p:PackageVersion=$nuGetPackageVersion"
     )
+    $dataArgs += $msBuildPropertyArgs
+    Invoke-DotNet -Arguments $dataArgs
 }
 
 function Invoke-Pack {
     param([Parameter(Mandatory = $true)][string]$PackageVersion)
 
     $projects = Get-ProjectPaths
+    $msBuildPropertyArgs = Get-MsBuildPropertyArguments
+    $versionParts = Split-SemVersion -VersionString $PackageVersion
+    $assemblyVersion = $versionParts.Numeric.ToString(4)
     $nuGetPackageVersion = Get-NuGetPackageVersion -VersionString $PackageVersion
     Set-PackageVersionEnvironment -PackageVersion $PackageVersion
+    Write-Host "AssemblyVersion=$assemblyVersion"
     Write-Host "NuGetPackageVersion=$nuGetPackageVersion"
 
-    Invoke-DotNet -Arguments @(
+    $bindingsArgs = @(
         "pack",
         $projects.Bindings,
         "-c", $Configuration,
         "/p:BuildType=Full",
-        "/p:Version=$PackageVersion",
-        "/p:FileVersion=$PackageVersion",
+        "/p:Version=$assemblyVersion",
+        "/p:FileVersion=$assemblyVersion",
+        "/p:InformationalVersion=$PackageVersion",
         "/p:PackageVersion=$nuGetPackageVersion"
     )
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotes)) {
+        $bindingsArgs += "/p:PackageReleaseNotes=$PackageReleaseNotes"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotesFile)) {
+        $resolved = Resolve-RepoPath -Path $PackageReleaseNotesFile
+        if (-not (Test-Path $resolved)) { throw "PackageReleaseNotesFile not found: $resolved" }
+        $repoReleaseNote = Join-Path $repoRoot 'RELEASE-NOTE.md'
+        if ($resolved -ne $repoReleaseNote) { throw "PackageReleaseNotesFile must be RELEASE-NOTE.md at the repository root for props-based inclusion. Move it to repo root or omit this parameter." }
+        $bindingsArgs += "/p:IncludeReleaseNotesFromRepoRoot=true"
+        $bindingsArgs += "/p:PackageReadmeFile=RELEASE-NOTE.md"
+    }
+    $bindingsArgs += $msBuildPropertyArgs
+    Invoke-DotNet -Arguments $bindingsArgs
 
-    Invoke-DotNet -Arguments @(
+    $dataArgs = @(
         "pack",
         $projects.Data,
         "-c", $Configuration,
         "/p:BuildType=Full",
-        "/p:Version=$PackageVersion",
-        "/p:FileVersion=$PackageVersion",
+        "/p:Version=$assemblyVersion",
+        "/p:FileVersion=$assemblyVersion",
+        "/p:InformationalVersion=$PackageVersion",
         "/p:PackageVersion=$nuGetPackageVersion"
     )
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotes)) {
+        $dataArgs += "/p:PackageReleaseNotes=$PackageReleaseNotes"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotesFile)) {
+        $resolved = Resolve-RepoPath -Path $PackageReleaseNotesFile
+        if (-not (Test-Path $resolved)) { throw "PackageReleaseNotesFile not found: $resolved" }
+        $repoReleaseNote = Join-Path $repoRoot 'RELEASE-NOTE.md'
+        if ($resolved -ne $repoReleaseNote) { throw "PackageReleaseNotesFile must be RELEASE-NOTE.md at the repository root for props-based inclusion. Move it to repo root or omit this parameter." }
+        $dataArgs += "/p:IncludeReleaseNotesFromRepoRoot=true"
+        $dataArgs += "/p:PackageReadmeFile=RELEASE-NOTE.md"
+    }
+    $dataArgs += $msBuildPropertyArgs
+    Invoke-DotNet -Arguments $dataArgs
 }
 
 function Invoke-Push {
@@ -342,7 +512,7 @@ function Invoke-Push {
 function Get-RemoteVersions {
     param([Parameter(Mandatory = $true)][string]$PackageId)
 
-    $args = @(
+    $propertyArgs = @(
         "package",
         "search",
         $PackageId,
@@ -353,18 +523,18 @@ function Get-RemoteVersions {
     )
 
     if ($IncludePrerelease) {
-        $args += "--prerelease"
+        $propertyArgs += "--prerelease"
     }
 
     if ($Interactive) {
-        $args += "--interactive"
+        $propertyArgs += "--interactive"
     }
 
     if (-not [string]::IsNullOrWhiteSpace($ConfigFile)) {
-        $args += @("--configfile", (Resolve-RepoPath -Path $ConfigFile))
+        $propertyArgs += @("--configfile", (Resolve-RepoPath -Path $ConfigFile))
     }
 
-    $output = Invoke-DotNetCapture -Arguments $args
+    $output = Invoke-DotNetCapture -Arguments $propertyArgs
     $outputText = ($output -join [Environment]::NewLine).Trim()
     $jsonStart = $outputText.IndexOf("{")
     if ($jsonStart -lt 0) {

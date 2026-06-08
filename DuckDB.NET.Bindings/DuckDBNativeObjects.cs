@@ -1,4 +1,6 @@
-﻿namespace DuckDB.NET.Native;
+﻿using System.ComponentModel;
+
+namespace DuckDB.NET.Native;
 
 public enum DuckDBState
 {
@@ -249,4 +251,103 @@ public struct DuckDBQueryProgress
     public double Percentage { get; }
     public ulong RowsProcessed { get; }
     public ulong TotalRowsToProcess { get; }
+}
+
+public enum DuckDBMetricType
+{
+    // Core metrics
+    CpuTime = 2,
+    CumulativeCardinality = 4,
+    CumulativeRowsScanned = 7,
+    ExtraInfo = 3,
+    Latency = 11,
+    QueryName = 0,
+    ResultSetSize = 10,
+    [Description("Not available yet see(https://github.com/duckdb/duckdb/issues/22592)")]
+    RowsReturned = 12,
+    // Execution metrics
+    BlockedThreadTime = 1,
+    SystemPeakBufferMemory = 14,
+    SystemPeakTempDirSize = 15,
+    TotalMemoryAllocated = 91,
+    // File metrics
+    AttachLoadStorageLatency = 92,
+    AttachReplayWalLatency = 93,
+    CheckpointLatency = 94,
+    CommitLocalStorageLatency = 95,
+    TotalBytesRead = 16,
+    TotalBytesWritten = 17,
+    WaitingToAttachLatency = 96,
+    WalReplayEntryCount = 97,
+    WriteToWalLatency = 98,
+    // Operator metrics
+    OperatorCardinality = 6,
+    OperatorName = 13,
+    OperatorRowsScanned = 8,
+    OperatorTiming = 9,
+    OperatorType = 5,
+    // Optimizer metrics
+    OptimizerExpressionRewriter = 26,
+    OptimizerFilterPullup = 27,
+    OptimizerFilterPushdown = 28,
+    OptimizerEmptyResultPullup = 29,
+    OptimizerCteFilterPusher = 30,
+    OptimizerRegexRange = 31,
+    OptimizerInClause = 32,
+    OptimizerJoinOrder = 33,
+    OptimizerDeliminator = 34,
+    OptimizerUnnestRewriter = 35,
+    OptimizerUnusedColumns = 36,
+    OptimizerStatisticsPropagation = 37,
+    OptimizerCommonSubexpressions = 38,
+    OptimizerCommonAggregate = 39,
+    OptimizerColumnLifetime = 40,
+    OptimizerBuildSideProbeSide = 41,
+    OptimizerLimitPushdown = 42,
+    OptimizerTopN = 43,
+    OptimizerCompressedMaterialization = 44,
+    OptimizerDuplicateGroups = 45,
+    OptimizerReorderFilter = 46,
+    OptimizerSamplingPushdown = 47,
+    OptimizerJoinFilterPushdown = 48,
+    OptimizerExtension = 49,
+    OptimizerMaterializedCte = 50,
+    OptimizerSumRewriter = 51,
+    OptimizerLateMaterialization = 52,
+    OptimizerCteInlining = 53,
+    OptimizerRowGroupPruner = 54,
+    OptimizerTopNWindowElimination = 55,
+    OptimizerCommonSubplan = 56,
+    OptimizerJoinElimination = 57,
+    OptimizerWindowSelfJoin = 58,
+    // PhaseTiming metrics
+    AllOptimizers = 18,
+    CumulativeOptimizerTiming = 19,
+    PhysicalPlanner = 22,
+    PhysicalPlannerColumnBinding = 23,
+    PhysicalPlannerCreatePlan = 25,
+    PhysicalPlannerResolveTypes = 24,
+    Planner = 20,
+    PlannerBinding = 21
+}
+
+public enum DuckDBProfilingFormat
+{
+    QueryTree,
+    Json,
+    QueryTreeOptimizer,
+    NoOutput
+}
+
+public enum DuckDBProfilingMode
+{
+    Standard,
+    Detailed,
+    All
+}
+
+public enum DuckDBProfilingCoverage
+{
+    Select,
+    All
 }
