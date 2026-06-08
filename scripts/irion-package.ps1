@@ -8,6 +8,9 @@ param(
     [ValidateSet("major", "minor", "build", "revision", "prerelease")]
     [string]$Part = "revision",
 
+    [Alias('p')]
+    [string[]]$MsBuildProperty,
+
     [string]$VersionFile = "build/irion.version",
     [string]$Configuration = "Release",
     [string]$NuGetSource = "Repository",
@@ -307,83 +310,131 @@ function Set-PackageVersionEnvironment {
     Write-Host "DUCKDB_VERSION_BUILD=$env:DUCKDB_VERSION_BUILD"
 }
 
+function Get-MsBuildPropertyArguments {
+    if ($null -eq $MsBuildProperty -or $MsBuildProperty.Count -eq 0) {
+        return @()
+    }
+
+    $args = New-Object System.Collections.Generic.List[string]
+    foreach ($property in $MsBuildProperty) {
+        $trimmed = $property.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
+            continue
+        }
+
+        if ($trimmed.StartsWith("/p:") -or $trimmed.StartsWith("-p:")) {
+            [void]$args.Add($trimmed)
+        }
+        else {
+            [void]$args.Add("/p:$trimmed")
+        }
+    }
+
+    return @($args)
+}
+
 function Invoke-Clean {
     param([Parameter(Mandatory = $true)][string]$PackageVersion)
 
     $projects = Get-ProjectPaths
+    $msBuildPropertyArgs = Get-MsBuildPropertyArguments
     Set-PackageVersionEnvironment -PackageVersion $PackageVersion
 
-    Invoke-DotNet -Arguments @(
+    $bindingsArgs = @(
         "clean",
         $projects.Bindings,
         "-c", $Configuration,
         "/p:BuildType=Full"
     )
+    $bindingsArgs += $msBuildPropertyArgs
+    Invoke-DotNet -Arguments $bindingsArgs
 
-    Invoke-DotNet -Arguments @(
+    $dataArgs = @(
         "clean",
         $projects.Data,
         "-c", $Configuration,
         "/p:BuildType=Full"
     )
+    $dataArgs += $msBuildPropertyArgs
+    Invoke-DotNet -Arguments $dataArgs
 }
 
 function Invoke-Build {
     param([Parameter(Mandatory = $true)][string]$PackageVersion)
 
     $projects = Get-ProjectPaths
+    $msBuildPropertyArgs = Get-MsBuildPropertyArguments
+    $versionParts = Split-SemVersion -VersionString $PackageVersion
+    $assemblyVersion = $versionParts.Numeric.ToString(4)
     $nuGetPackageVersion = Get-NuGetPackageVersion -VersionString $PackageVersion
     Set-PackageVersionEnvironment -PackageVersion $PackageVersion
+    Write-Host "AssemblyVersion=$assemblyVersion"
     Write-Host "NuGetPackageVersion=$nuGetPackageVersion"
 
-    Invoke-DotNet -Arguments @(
+    $bindingsArgs = @(
         "build",
         $projects.Bindings,
         "-c", $Configuration,
         "/p:BuildType=Full",
-        "/p:Version=$PackageVersion",
-        "/p:FileVersion=$PackageVersion",
+        "/p:Version=$assemblyVersion",
+        "/p:FileVersion=$assemblyVersion",
+        "/p:InformationalVersion=$PackageVersion",
         "/p:PackageVersion=$nuGetPackageVersion"
     )
+    $bindingsArgs += $msBuildPropertyArgs
+    Invoke-DotNet -Arguments $bindingsArgs
 
-    Invoke-DotNet -Arguments @(
+    $dataArgs = @(
         "build",
         $projects.Data,
         "-c", $Configuration,
         "/p:BuildType=Full",
-        "/p:Version=$PackageVersion",
-        "/p:FileVersion=$PackageVersion",
+        "/p:Version=$assemblyVersion",
+        "/p:FileVersion=$assemblyVersion",
+        "/p:InformationalVersion=$PackageVersion",
         "/p:PackageVersion=$nuGetPackageVersion"
     )
+    $dataArgs += $msBuildPropertyArgs
+    Invoke-DotNet -Arguments $dataArgs
 }
 
 function Invoke-Pack {
     param([Parameter(Mandatory = $true)][string]$PackageVersion)
 
     $projects = Get-ProjectPaths
+    $msBuildPropertyArgs = Get-MsBuildPropertyArguments
+    $versionParts = Split-SemVersion -VersionString $PackageVersion
+    $assemblyVersion = $versionParts.Numeric.ToString(4)
     $nuGetPackageVersion = Get-NuGetPackageVersion -VersionString $PackageVersion
     Set-PackageVersionEnvironment -PackageVersion $PackageVersion
+    Write-Host "AssemblyVersion=$assemblyVersion"
     Write-Host "NuGetPackageVersion=$nuGetPackageVersion"
 
-    Invoke-DotNet -Arguments @(
+    $bindingsArgs = @(
         "pack",
         $projects.Bindings,
         "-c", $Configuration,
         "/p:BuildType=Full",
-        "/p:Version=$PackageVersion",
-        "/p:FileVersion=$PackageVersion",
+        "/p:Version=$assemblyVersion",
+        "/p:FileVersion=$assemblyVersion",
+        "/p:InformationalVersion=$PackageVersion",
         "/p:PackageVersion=$nuGetPackageVersion"
     )
+    $bindingsArgs += $msBuildPropertyArgs
+    Invoke-DotNet -Arguments $bindingsArgs
 
-    Invoke-DotNet -Arguments @(
+    $dataArgs = @(
         "pack",
         $projects.Data,
         "-c", $Configuration,
         "/p:BuildType=Full",
-        "/p:Version=$PackageVersion",
-        "/p:FileVersion=$PackageVersion",
+        "/p:Version=$assemblyVersion",
+        "/p:FileVersion=$assemblyVersion",
+        "/p:InformationalVersion=$PackageVersion",
         "/p:PackageVersion=$nuGetPackageVersion"
     )
+    $dataArgs += $msBuildPropertyArgs
+    Invoke-DotNet -Arguments $dataArgs
 }
 
 function Invoke-Push {

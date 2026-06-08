@@ -1,5 +1,10 @@
 ﻿<Project DefaultTargets="DownloadReleaseNatives;DownloadNightlyNatives">
 
+  <PropertyGroup>
+    <NativeDownloadRetries Condition="'$(NativeDownloadRetries)' == ''">5</NativeDownloadRetries>
+    <NativeDownloadRetryDelayMilliseconds Condition="'$(NativeDownloadRetryDelayMilliseconds)' == ''">1000</NativeDownloadRetryDelayMilliseconds>
+  </PropertyGroup>
+
   <!-- Release: download lib zip directly -->
   <Target Name="DownloadReleaseNatives"
           Condition="!Exists('$(MSBuildProjectDirectory)\obj\runtimes\$(Rid)\native') AND '$(InnerZipName)' == ''">
@@ -18,8 +23,8 @@
     <DownloadFile
             DestinationFolder="$(MSBuildProjectDirectory)\obj\runtimes\$(Rid)"
             SourceUrl="$(LibUrl)"
-            Retries="5"
-            RetryDelayMilliseconds="1000"
+          Retries="$(NativeDownloadRetries)"
+          RetryDelayMilliseconds="$(NativeDownloadRetryDelayMilliseconds)"
             DestinationFileName="native.zip"
             Condition="'$(LibIsUnc)' != 'True'"/>
     <Unzip DestinationFolder="$(MSBuildProjectDirectory)\obj\runtimes\$(Rid)\native"
@@ -39,8 +44,8 @@
     <DownloadFile
             DestinationFolder="$(MSBuildProjectDirectory)\obj\runtimes\$(Rid)"
             SourceUrl="$(LibUrl)"
-            Retries="5"
-            RetryDelayMilliseconds="1000"
+          Retries="$(NativeDownloadRetries)"
+          RetryDelayMilliseconds="$(NativeDownloadRetryDelayMilliseconds)"
             DestinationFileName="native.zip"/>
     <Unzip DestinationFolder="$(TempExtractPath)"
            SourceFiles="$(NativeZipPath)"/>

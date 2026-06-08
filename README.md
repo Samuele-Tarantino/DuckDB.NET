@@ -100,13 +100,13 @@ Current version:
 Set explicit version:
 
 ```powershell
-.\scripts\irion-package.ps1 -Command set -Version 1.5.2.2-rc.1
+.\scripts\irion-package.ps1 -Command set -Version 1.5.2.2-rc.2
 ```
 
 Bump version in `build/irion.version`:
 
 ```powershell
-.\scripts\irion-package.ps1 -Command bump -Part prerelease # 1.4.4-alpha.1 -> 1.4.4-alpha.2
+.\scripts\irion-package.ps1 -Command bump -Part prerelease # 1.4.4.0-alpha.1 -> 1.4.4.0-alpha.2
 # .\scripts\irion-package.ps1 -Command bump -Part revision  # 1.4.4.1 -> 1.4.4.2
 # .\scripts\irion-package.ps1 -Command bump -Part build     # 1.4.4.1 -> 1.4.5.0
 # .\scripts\irion-package.ps1 -Command bump -Part minor     # 1.4.4.1 -> 1.5.0.0
@@ -128,7 +128,7 @@ You can override package IDs if needed:
 #### 3. Build (Full)
 
 ```powershell
-.\scripts\irion-package.ps1 -Command build
+.\scripts\irion-package.ps1 -Command build -p "NativeDownloadRetries=30","NativeDownloadRetryDelayMilliseconds=15000"
 ```
 
 The build command runs a full `dotnet clean` for both Irion projects before building.

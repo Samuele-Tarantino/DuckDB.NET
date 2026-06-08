@@ -17,7 +17,7 @@ public readonly record struct ProfilingSummary(
             ["ConnectionTime"] = ConnectionTimeMilliseconds,
             ["ExecutionTime"] = ExecutionTimeMilliseconds,
             ["QueryCount"] = QueryCount,
-            ["QuerySummaryList"] = QuerySummaryList
+            ["QuerySummaryList"] = QuerySummaryList ?? Array.Empty<ProfilingQuerySummary>()
         };
     }
 }
