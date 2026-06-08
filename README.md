@@ -100,7 +100,7 @@ Current version:
 Set explicit version:
 
 ```powershell
-.\scripts\irion-package.ps1 -Command set -Version 1.5.2.2-rc.3
+.\scripts\irion-package.ps1 -Command set -Version 1.5.2.2
 ```
 
 Bump version in `build/irion.version`:
@@ -155,7 +155,7 @@ Generated packages:
 if `-PackageReleaseNotes` or `-PackageReleaseNotesFile` are provided, the content is included in the generated `.nupkg` metadata and visible on NuGet.org.
 
 ```powershell
-.\scripts\irion-package.ps1 -Command pack -PackageReleaseNotes "Introduced support for DuckDB ProfilingInfo feature." -PackageReleaseNotesFile "RELEASE-NOTE.md"
+.\scripts\irion-package.ps1 -Command pack -PackageReleaseNotes "New feature short description" -PackageReleaseNotesFile "RELEASE-NOTE.md"
 ```
 
 
