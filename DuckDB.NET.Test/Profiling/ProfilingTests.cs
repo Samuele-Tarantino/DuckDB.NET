@@ -53,6 +53,113 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
     }
 
     [Fact]
+    public void DisableProfiling_WithResetTrue_ClearsStatistics()
+    {
+        var options = new ProfilingOptions
+        {
+            Coverage = DuckDBProfilingCoverage.All,
+            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            Format = DuckDBProfilingFormat.Json,
+            Mode = DuckDBProfilingMode.Standard
+        };
+
+        Connection.EnableProfiling(options);
+
+        try
+        {
+            // run a first batch to collect stats
+            Command.CommandText = "SELECT 1;";
+            using (var r = Command.ExecuteReader()) { }
+
+            var before = Connection.RetrieveStatistics();
+            before.QueryCount.Should().BeGreaterThan(0, "Expected some profiling data before disabling with reset");
+
+            // disable and reset statistics
+            Connection.DisableProfiling(true);
+
+            var after = Connection.RetrieveStatistics();
+            after.QueryCount.Should().Be(0, "Expected QueryCount to be zero after DisableProfiling(true)");
+        }
+        finally
+        {
+            try { Connection.DisableProfiling(true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void DisableProfiling_StopsWritingFiles()
+    {
+        // create a temp directory to be used as profiling output
+        var tempLocation = Path.Combine(Path.GetTempPath(), "duckdb_profile_output_" + Guid.NewGuid().ToString("N"), "profile.json");
+        var tempDir = Path.GetDirectoryName(tempLocation)!;
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var options = new ProfilingOptions
+            {
+                Coverage = DuckDBProfilingCoverage.All,
+                EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+                Format = DuckDBProfilingFormat.Json,
+                Mode = DuckDBProfilingMode.Standard,
+                OutputPath = tempLocation
+            };
+
+            Connection.EnableProfiling(options);
+
+            try
+            {
+                Connection.ResetStatistics();
+
+                Command.CommandText = "SELECT 1;";
+                using (var r = Command.ExecuteReader()) { }
+
+                // give DuckDB a small amount of time to flush files
+                var jsonFiles = Array.Empty<string>();
+                for (int i = 0; i < 10; i++)
+                {
+                    jsonFiles = [.. Directory.EnumerateFiles(tempDir, "*.json", SearchOption.AllDirectories)];
+                    if (jsonFiles.Length > 0) break;
+                    Thread.Sleep(200);
+                }
+
+                jsonFiles.Length.Should().BeGreaterThan(0, "Expected at least one JSON file in the profiling output path after enabling with OutputPath");
+
+                var beforeCount = jsonFiles.Length;
+
+                // Disable profiling
+                Connection.DisableProfiling();
+
+                Connection.ResetStatistics();
+
+                // run another query; no new files should be produced
+                Command.CommandText = "SELECT 2;";
+                using (var r = Command.ExecuteReader()) { }
+
+                // wait a short while and re-check files
+                var jsonFilesAfter = Array.Empty<string>();
+                for (int i = 0; i < 10; i++)
+                {
+                    jsonFilesAfter = [.. Directory.EnumerateFiles(tempDir, "*.json", SearchOption.AllDirectories)];
+                    if (jsonFilesAfter.Length != beforeCount) break;
+                    Thread.Sleep(200);
+                }
+
+                // After disabling profiling, directory should not gain additional JSON files
+                jsonFilesAfter.Length.Should().Be(beforeCount, "No additional profiling JSON files should be created after disabling profiling");
+            }
+            finally
+            {
+                try { Connection.DisableProfiling(); } catch { }
+            }
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
     public void EnableProfiling_UsesOutputPathConfiguration()
     {
         // create a temp directory to be used as profiling output
@@ -163,6 +270,79 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         finally
         {
             Connection.DisableProfiling();
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void EditingProfilingOptions_RemovesOutputPath_WhenCleared()
+    {
+        var tempLocation = Path.Combine(Path.GetTempPath(), "duckdb_profile_output_" + Guid.NewGuid().ToString("N"), "profile.json");
+        var tempDir = Path.GetDirectoryName(tempLocation)!;
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var options = new ProfilingOptions
+            {
+                Coverage = DuckDBProfilingCoverage.All,
+                EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+                Format = DuckDBProfilingFormat.Json,
+                Mode = DuckDBProfilingMode.Standard,
+                OutputPath = tempLocation
+            };
+
+            Connection.EnableProfiling(options);
+
+            try
+            {
+                Connection.ResetStatistics();
+
+                Command.CommandText = "SELECT 1;";
+                using (var r = Command.ExecuteReader()) { }
+
+                var jsonFiles = Array.Empty<string>();
+                for (int i = 0; i < 10; i++)
+                {
+                    jsonFiles = Directory.EnumerateFiles(tempDir, "*.json", SearchOption.AllDirectories).ToArray();
+                    if (jsonFiles.Length > 0) break;
+                    Thread.Sleep(200);
+                }
+
+                jsonFiles.Length.Should().BeGreaterThan(0, "Expected at least one JSON file in the profiling output path after enabling with OutputPath");
+                var beforeCount = jsonFiles.Length;
+
+                var newOptions = new ProfilingOptions
+                {
+                    Coverage = DuckDBProfilingCoverage.All,
+                    EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+                    Format = DuckDBProfilingFormat.Json,
+                    Mode = DuckDBProfilingMode.Standard
+                };
+
+                Connection.EditProfilingOptions(newOptions);
+                Connection.ResetStatistics();
+
+                Command.CommandText = "SELECT 2;";
+                using (var r = Command.ExecuteReader()) { }
+
+                var jsonFilesAfter = Array.Empty<string>();
+                for (int i = 0; i < 10; i++)
+                {
+                    jsonFilesAfter = Directory.EnumerateFiles(tempDir, "*.json", SearchOption.AllDirectories).ToArray();
+                    if (jsonFilesAfter.Length != beforeCount) break;
+                    Thread.Sleep(200);
+                }
+
+                jsonFilesAfter.Length.Should().Be(beforeCount, "No additional profiling JSON files should be created after clearing OutputPath");
+            }
+            finally
+            {
+                Connection.DisableProfiling();
+            }
+        }
+        finally
+        {
             try { Directory.Delete(tempDir, true); } catch { }
         }
     }

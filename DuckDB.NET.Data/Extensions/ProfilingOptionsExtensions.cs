@@ -28,6 +28,10 @@ namespace DuckDB.NET.Data.Extensions
 
             sb.AppendLine(");");
 
+            // If no output path is provided, disable profiling output to file
+            if (string.IsNullOrEmpty(options.OutputPath))
+                sb.AppendLine("SET profiling_output = '';");
+
             return sb.ToString();
         }
     }
