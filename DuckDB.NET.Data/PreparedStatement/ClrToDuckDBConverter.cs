@@ -93,8 +93,8 @@ internal static class ClrToDuckDBConverter
             (DuckDBType.Blob, byte[] value) => NativeMethods.Value.DuckDBCreateBlob(value, value.Length),
             (DuckDBType.List, ICollection value) => CreateCollectionValue(logicalType, value, true, dbType),
             (DuckDBType.Array, ICollection value) => CreateCollectionValue(logicalType, value, false, dbType),
-            (_, ICollection value) when item is not byte[] => CreateListFromClrType(value, dbType),
             (DuckDBType.Map, IDictionary value) => CreateMapValue(logicalType, value),
+            (_, ICollection value) when item is not byte[] => CreateListFromClrType(value, dbType),
             _ when ValueCreators.TryGetValue(dbType, out var converter) => converter(item),
             _ => NativeMethods.Value.DuckDBCreateVarchar(item.ToString())
         };
@@ -158,29 +158,6 @@ internal static class ClrToDuckDBConverter
         }
 
         return values;
-    }
-
-    private static DuckDBValue CreateMapValue(DuckDBLogicalType logicalType, IDictionary dictionary)
-    {
-        //get key and value types from logical type
-        using var keyType = NativeMethods.LogicalType.DuckDBMapTypeKeyType(logicalType);
-        using var valueType = NativeMethods.LogicalType.DuckDBMapTypeValueType(logicalType);
-
-        //get duckdb types for key and value types
-        var keyDuckDBType = NativeMethods.LogicalType.DuckDBGetTypeId(keyType);
-        var valueDuckDBType = NativeMethods.LogicalType.DuckDBGetTypeId(valueType);
-
-        var keys = new DuckDBValue[dictionary.Count];
-        var values = new DuckDBValue[dictionary.Count];
-        var index = 0;
-        foreach (DictionaryEntry entry in dictionary)
-        {
-            keys[index] = entry.Key.ToDuckDBValue(keyType, keyDuckDBType, DbType.Object);
-            values[index] = entry.Value.ToDuckDBValue(valueType, valueDuckDBType, DbType.Object);
-            index++;
-        }
-
-        return NativeMethods.Value.DuckDBCreateMapValue(logicalType, keys, values, dictionary.Count);
     }
 
     private static DuckDBValue CreateMapValue(DuckDBLogicalType logicalType, IDictionary dictionary)
