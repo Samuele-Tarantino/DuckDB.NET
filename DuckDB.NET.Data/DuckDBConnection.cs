@@ -193,7 +193,7 @@ public partial class DuckDBConnection : DbConnection
         {
             try
             {
-                DuckDBAppender.ThrowLastError(nativeAppender);
+                NativeMethods.Appender.DuckDBAppenderErrorData(nativeAppender).ThrowOnError();
             }
             finally
             {
