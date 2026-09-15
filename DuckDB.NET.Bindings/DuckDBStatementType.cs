@@ -31,4 +31,7 @@ public enum DuckDBStatementType
     Attach,
     Detach,
     Multi,
+    CopyDatabase,
+    UpdateExtensions,
+    MergeInto,
 }

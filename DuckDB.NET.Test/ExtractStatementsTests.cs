@@ -52,4 +52,25 @@ public class ExtractStatementsTests(DuckDBDatabaseFixture db) : DuckDBTestBase(d
         dataReader.Invoking(reader => reader.NextResult()).Should()
             .Throw<InvalidOperationException>().Where(e => e.Message.Contains("Invalid number of parameters. Expected 2, got 1"));
     }
+
+    [Fact]
+    public void GetStatementTypes_WhenBatchContainsExtensionStatements_ReturnsTheNativeStatementTypes()
+    {
+        var statementTypes = Connection.GetStatementTypes("INSTALL mysql FROM core; FORCE INSTALL mysql FROM core; LOAD mysql; UPDATE EXTENSIONS; SELECT 1;");
+
+        statementTypes.Should().Equal(
+            DuckDBStatementType.Load,
+            DuckDBStatementType.Load,
+            DuckDBStatementType.Load,
+            DuckDBStatementType.UpdateExtensions,
+            DuckDBStatementType.Select);
+    }
+
+    [Fact]
+    public void GetStatementTypes_WhenKeywordsAreOnlyInStringsOrComments_DoesNotReturnExtensionStatements()
+    {
+        var statementTypes = Connection.GetStatementTypes("SELECT 'INSTALL mysql; LOAD mysql'; -- INSTALL mysql\nSELECT 1;");
+
+        statementTypes.Should().Equal(DuckDBStatementType.Select, DuckDBStatementType.Select);
+    }
 }
