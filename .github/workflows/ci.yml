@@ -67,7 +67,7 @@ jobs:
         with:
           github-token: ${{ secrets.github_token }}
           flag-name: run-ubuntu-latest
-          path-to-lcov: DuckDB.NET.Test/coverage.net8.0.info
+          path-to-lcov: DuckDB.NET.Test/coverage.net10.0.info
           parallel: true
           format: lcov
 

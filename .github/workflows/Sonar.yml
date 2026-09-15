@@ -2,25 +2,23 @@ name: SonarCloud
 
 on:
   workflow_dispatch:
-  
+
   push:
     branches:
       - develop
     paths-ignore:
-      - '**.md'
-      - '**/NuGet.yml'      
+      - "**.md"
+      - "**/NuGet.yml"
   pull_request_target:
     types: [opened, synchronize, reopened]
 jobs:
   Authorize:
-    environment:
-      ${{ github.event_name == 'pull_request_target' &&
+    environment: ${{ github.event_name == 'pull_request_target' &&
       github.event.pull_request.head.repo.full_name != github.repository &&
       'external' || 'internal' }}
     runs-on: ubuntu-latest
     steps:
       - run: true
-
 
   build:
     needs: Authorize
@@ -31,17 +29,17 @@ jobs:
         uses: actions/setup-java@v5
         with:
           java-version: 17
-          distribution: 'zulu' # Alternative distribution options are available.
+          distribution: "zulu" # Alternative distribution options are available.
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.ref }}      
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
 
       - name: Setup .NET Core SDK
         uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
-      
+
       - name: Cache SonarCloud packages
         uses: actions/cache@v5
         with:
@@ -66,11 +64,11 @@ jobs:
 
       - name: Build and analyze
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: pwsh
         run: |
-          ./.sonar/scanner/dotnet-sonarscanner begin /k:"Giorgi_DuckDB.NET" /o:"giorgi" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.cs.opencover.reportsPaths=DuckDB.NET.Test/coverage.net8.0.opencover.xml /d:sonar.host.url="https://sonarcloud.io"
+          ./.sonar/scanner/dotnet-sonarscanner begin /k:"Giorgi_DuckDB.NET" /o:"giorgi" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.cs.opencover.reportsPaths=DuckDB.NET.Test/coverage.net10.0.opencover.xml /d:sonar.host.url="https://sonarcloud.io"
           dotnet build
           dotnet test --configuration Release --verbosity normal --logger GitHubActions /p:CollectCoverage=true /p:CoverletOutputFormat=opencover /p:BuildType=Full /p:DoesNotReturnAttribute="DoesNotReturnAttribute"
           ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
