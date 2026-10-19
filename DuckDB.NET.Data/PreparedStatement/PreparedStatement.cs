@@ -14,7 +14,7 @@ internal sealed class PreparedStatement : IDisposable
         this.statement = statement;
     }
 
-    public static IEnumerable<DuckDBResult> PrepareMultiple(DuckDBNativeConnection connection, string query, DuckDBParameterCollection parameters, bool useStreamingMode)
+    public static IEnumerable<DuckDBResult> PrepareMultiple(DuckDBNativeConnection connection, string query, DuckDBParameterCollection parameters, bool useStreamingMode, Action<DuckDBStatementType>? statementValidator = null)
     {
         var statementCount = NativeMethods.ExtractStatements.DuckDBExtractStatements(connection, query, out var extractedStatements);
 
@@ -48,6 +48,10 @@ internal sealed class PreparedStatement : IDisposable
                     {
                         using var preparedStatement = new PreparedStatement(statement);
                         preparedStatement.statementProfiler = statementProfiler;
+
+                        // Runs after this statement is prepared and before it is executed, so the validator sees the
+                        // effects of the previous statements of the batch (e.g. a table they created).
+                        statementValidator?.Invoke(NativeMethods.PreparedStatements.DuckDBPreparedStatementType(statement));
 
                         var result = preparedStatement.Execute(parameters, useStreamingMode, connection);
 

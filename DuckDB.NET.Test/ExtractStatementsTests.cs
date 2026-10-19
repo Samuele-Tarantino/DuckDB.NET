@@ -53,24 +53,88 @@ public class ExtractStatementsTests(DuckDBDatabaseFixture db) : DuckDBTestBase(d
             .Throw<InvalidOperationException>().Where(e => e.Message.Contains("Invalid number of parameters. Expected 2, got 1"));
     }
 
-    [Fact]
-    public void GetStatementTypes_WhenBatchContainsExtensionStatements_ReturnsTheNativeStatementTypes()
+    [Theory]
+    [InlineData("INSTALL mysql FROM core", DuckDBStatementType.Load)]
+    [InlineData("FORCE INSTALL mysql FROM core", DuckDBStatementType.Load)]
+    [InlineData("LOAD mysql", DuckDBStatementType.Load)]
+    [InlineData("UPDATE EXTENSIONS", DuckDBStatementType.UpdateExtensions)]
+    public void StatementValidator_ReceivesTheNativeTypeOfExtensionStatements(string statement, DuckDBStatementType expected)
     {
-        var statementTypes = Connection.GetStatementTypes("INSTALL mysql FROM core; FORCE INSTALL mysql FROM core; LOAD mysql; UPDATE EXTENSIONS; SELECT 1;");
+        DuckDBStatementType? seen = null;
+        Command.CommandText = statement;
+        // Throwing keeps the extension command from really running (it would need network access).
+        Command.StatementValidator = type =>
+        {
+            seen = type;
+            throw new InvalidOperationException("stop");
+        };
 
-        statementTypes.Should().Equal(
-            DuckDBStatementType.Load,
-            DuckDBStatementType.Load,
-            DuckDBStatementType.Load,
-            DuckDBStatementType.UpdateExtensions,
-            DuckDBStatementType.Select);
+        Command.Invoking(cmd => cmd.ExecuteNonQuery()).Should().Throw<InvalidOperationException>();
+
+        seen.Should().Be(expected);
     }
 
     [Fact]
-    public void GetStatementTypes_WhenKeywordsAreOnlyInStringsOrComments_DoesNotReturnExtensionStatements()
+    public void StatementValidator_WhenKeywordsAreOnlyInStringsOrComments_DoesNotSeeExtensionStatements()
     {
-        var statementTypes = Connection.GetStatementTypes("SELECT 'INSTALL mysql; LOAD mysql'; -- INSTALL mysql\nSELECT 1;");
+        var validated = new List<DuckDBStatementType>();
+        Command.CommandText = "SELECT 'INSTALL mysql; LOAD mysql'; -- INSTALL mysql\nSELECT 1;";
+        Command.StatementValidator = validated.Add;
 
-        statementTypes.Should().Equal(DuckDBStatementType.Select, DuckDBStatementType.Select);
+        Command.ExecuteNonQuery();
+
+        validated.Should().Equal(DuckDBStatementType.Select, DuckDBStatementType.Select);
+    }
+
+    private const string DependentBatch =
+        "CREATE OR REPLACE TABLE BatchDependent AS SELECT 1 AS a; INSERT INTO BatchDependent(a) VALUES (2); SELECT a FROM BatchDependent ORDER BY a;";
+
+    [Fact]
+    public void StatementValidator_WhenStatementDependsOnPreviousOne_ValidatesStatementByStatementAndExecutesTheBatch()
+    {
+        var validated = new List<DuckDBStatementType>();
+        Command.CommandText = DependentBatch;
+        Command.StatementValidator = validated.Add;
+
+        using var reader = Command.ExecuteReader();
+
+        var rows = new List<int>();
+        do
+        {
+            while (reader.Read())
+            {
+                rows.Add(reader.GetInt32(0));
+            }
+        } while (reader.NextResult());
+
+        validated.Should().Equal(DuckDBStatementType.Create, DuckDBStatementType.Insert, DuckDBStatementType.Select);
+        rows.Should().Equal(1, 2);
+    }
+
+    [Fact]
+    public void StatementValidator_WhenItThrows_StopsTheBatchKeepingThePreviousStatementsEffects()
+    {
+        Command.CommandText = "CREATE TABLE ValidatorStops(a INTEGER); INSTALL mysql FROM core; CREATE TABLE ValidatorNeverCreated(a INTEGER);";
+        Command.StatementValidator = type =>
+        {
+            if (type == DuckDBStatementType.Load)
+            {
+                throw new InvalidOperationException("extension commands are disabled");
+            }
+        };
+
+        Command.Invoking(cmd => cmd.ExecuteNonQuery()).Should()
+            .Throw<InvalidOperationException>().WithMessage("extension commands are disabled");
+
+        using var check = Connection.CreateCommand();
+        check.CommandText = "SELECT table_name FROM information_schema.tables WHERE table_name IN ('ValidatorStops', 'ValidatorNeverCreated')";
+        using var reader = check.ExecuteReader();
+        var tables = new List<string>();
+        while (reader.Read())
+        {
+            tables.Add(reader.GetString(0));
+        }
+
+        tables.Should().Equal("ValidatorStops");
     }
 }
