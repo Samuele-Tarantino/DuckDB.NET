@@ -56,7 +56,7 @@ public static class DuckDBMetricNames
     public const string OptimizerAll = "optimizer.*";
     public const string OptimizerTotalTime = "optimizer.total_time";
 
-    /// <summary>Metrics of the operator tree. They are not reported per query: they are tracked to compute <see cref="Statistics.ProfilingInfoMetrics.ResultSetSize"/>.</summary>
+    /// <summary>Metrics of the operator tree. They are not reported per query: they are tracked to compute the legacy ResultSetSize metric.</summary>
     public const string OperatorAll = "operator.*";
     public const string OperatorCpuTime = "operator.cpu_time";
     public const string OperatorExtraInfo = "operator.extra_info";
