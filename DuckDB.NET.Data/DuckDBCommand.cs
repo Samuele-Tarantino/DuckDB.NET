@@ -144,7 +144,7 @@ public class DuckDBCommand : DbCommand
 
             if (NativeMethods.Query.DuckDBResultReturnType(current) == DuckDBResultType.QueryResult)
             {
-                return new DuckDBArrowArrayStream(current);
+                return new DuckDBArrowArrayStream(current, connection.NativeConnection);
             }
 
             current.Close();

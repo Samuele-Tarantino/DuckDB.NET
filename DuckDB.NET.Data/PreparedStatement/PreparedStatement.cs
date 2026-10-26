@@ -98,7 +98,6 @@ internal sealed class PreparedStatement : IDisposable
 
         try
         {
-
             BindParameters(statement, parameterCollection);
 
             var status = useStreamingMode
@@ -109,24 +108,17 @@ internal sealed class PreparedStatement : IDisposable
             {
                 var errorMessage = NativeMethods.Query.DuckDBResultError(ref queryResult);
                 var errorType = NativeMethods.Query.DuckDBResultErrorType(ref queryResult);
-                queryResult.Close();
 
-                if (string.IsNullOrEmpty(errorMessage))
+                profiler?.SetState(status, errorType, string.IsNullOrEmpty(errorMessage) ? "DuckDB execution failed" : errorMessage);
+
+                try
                 {
-                    errorMessage = "DuckDB execution failed";
+                    queryResult.ThrowOnError(connection, "DuckDB execution failed");
                 }
-
-                profiler?.SetState(status, errorType, errorMessage);
-
-                if (errorType == DuckDBErrorType.Interrupt)
+                finally
                 {
-                    throw new OperationCanceledException();
+                    queryResult.Close();
                 }
-
-                var innerException = UdfExceptionStore.Retrieve(connection);
-                throw innerException != null
-                    ? new DuckDBException(errorMessage, innerException)
-                    : new DuckDBException(errorMessage, errorType);
             }
 
             profiler?.AcquireMetrics();
