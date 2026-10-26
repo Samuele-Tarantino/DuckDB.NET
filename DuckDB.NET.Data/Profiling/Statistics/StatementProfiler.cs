@@ -1,4 +1,5 @@
 ﻿using DuckDB.NET.Data.Common;
+using DuckDB.NET.Data.Extensions;
 using DuckDB.NET.Data.Profiling.Statistics.Summary;
 
 namespace DuckDB.NET.Data.Profiling.Statistics;
@@ -6,12 +7,12 @@ namespace DuckDB.NET.Data.Profiling.Statistics;
 internal sealed class StatementProfiler(int queryIndex, DuckDBNativeConnection connection, ProfilingOptions? profilingOptions)
 : ExecutionProfiler(connection, profilingOptions)
 {
-    private Dictionary<string, string> rawMetrics = [];
+    private ProfilingTreeMetrics? treeMetrics;
 
     /// <summary>
     /// Gets the profiling metrics associated with the current operation.
     /// </summary>
-    internal ProfilingInfoMetrics Info => ProfilingInfoMetrics.FromRawMetrics(rawMetrics);
+    internal ProfilingInfoMetrics Info => ProfilingInfoMetrics.FromTree(treeMetrics);
 
     /// <summary>
     /// Creates a summary of the profiling statement, including execution timing, order, metrics, state, and any associated
@@ -53,7 +54,7 @@ internal sealed class StatementProfiler(int queryIndex, DuckDBNativeConnection c
 
         if (profile.TryPrepare())
         {
-            rawMetrics = profile.GetRawMetrics();
+            treeMetrics = profile.GetMetrics(profilingOptions?.GetTrackedMetrics());
         }
     }
 

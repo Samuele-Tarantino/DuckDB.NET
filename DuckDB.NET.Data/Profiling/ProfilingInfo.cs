@@ -29,23 +29,17 @@ internal sealed class ProfilingInfo: IDisposable
     }
 
     /// <summary>
-    /// Gets the raw metrics as a dictionary of string key-value pairs. Throws an exception if the profiling info is not prepared.
+    /// Gets the metrics of the profiled query, flattened to qualified DuckDB 2.0 names. Throws an exception if the profiling info is not prepared.
     /// </summary>
-    /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    internal Dictionary<string, string> GetRawMetrics()
+    internal ProfilingTreeMetrics GetMetrics(IReadOnlyList<string>? tracked)
     {
         if (duckDBProfilingInfoWrapper == null)
         {
             throw new InvalidOperationException("Profiling info is not prepared. Call TryPrepare() first.");
         }
 
-        using var metricsValue = duckDBProfilingInfoWrapper.GetMetrics();
-        if (metricsValue.IsNull())
-        {
-            return [];
-        }
-        return metricsValue.GetMapValue<string, string>();
+        return MetricMapping.Flatten(duckDBProfilingInfoWrapper, tracked);
     }
 
     public void Dispose()

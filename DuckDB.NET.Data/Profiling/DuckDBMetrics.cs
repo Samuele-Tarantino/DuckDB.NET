@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿#pragma warning disable CS0618 // Legacy DuckDBMetricType sets, kept for existing callers.
+using System.Linq;
 
 namespace DuckDB.NET.Data.Profiling
 {

@@ -233,7 +233,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
 
             jsonFiles.Length.Should().BeGreaterThan(0, "Expected at least one JSON file in the profiling output path");
 
-            // parse the first JSON file and assert it contains a property named "QueryName" somewhere
+            // parse the first JSON file and assert it contains the query text (QueryName is query.sql in DuckDB 2.0) somewhere
             var json = File.ReadAllText(jsonFiles[0]);
             using var doc = JsonDocument.Parse(json);
 
@@ -245,7 +245,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
                 {
                     foreach (var prop in el.EnumerateObject())
                     {
-                        if (string.Equals(prop.Name, DuckDBMetricsExtensions.ToDuckDBMetricTypeString(DuckDBMetricType.QueryName), StringComparison.OrdinalIgnoreCase))
+                        if (string.Equals(prop.Name, "sql", StringComparison.OrdinalIgnoreCase))
                         {
                             found = true;
                             return;
