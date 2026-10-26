@@ -3,7 +3,7 @@
   <PropertyGroup>
     <Description>DuckDB ADO.NET Provider for C#.</Description>
     <PackageReleaseNotes>
-- Updated to DuckDB v1.5.6
+- Updated to DuckDB v2.0.0
 
 New features:
 - Typed properties for 24 DuckDB configuration options on DuckDBConnectionStringBuilder

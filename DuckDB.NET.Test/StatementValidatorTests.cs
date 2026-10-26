@@ -44,7 +44,7 @@ public class StatementValidatorTests(DuckDBDatabaseFixture db) : DuckDBTestBase(
     [InlineData("COPY TypeProbe TO 'typeprobe.csv'", DuckDBStatementType.Copy)]
     [InlineData("ANALYZE", DuckDBStatementType.Vacuum)] // DuckDB parses ANALYZE as a VACUUM statement
     [InlineData("SET threads = 1", DuckDBStatementType.Set)]
-    [InlineData("PRAGMA disable_progress_bar", DuckDBStatementType.Pragma)]
+    [InlineData("PRAGMA disable_progress_bar", DuckDBStatementType.Set)] // DuckDB 2.0 parses PRAGMA statements as SET or SELECT
     [InlineData("VACUUM", DuckDBStatementType.Vacuum)]
     [InlineData("CALL pragma_version()", DuckDBStatementType.Call)]
     [InlineData("ATTACH ':memory:' AS TypeProbeDb", DuckDBStatementType.Attach)]

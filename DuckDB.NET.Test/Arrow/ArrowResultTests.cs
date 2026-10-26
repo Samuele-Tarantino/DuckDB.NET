@@ -83,7 +83,7 @@ public class ArrowResultTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
     {
         // The first chunks convert fine; the error is raised only while producing a later chunk.
         Command.UseStreamingMode = true;
-        Command.CommandText = "SELECT CAST(CASE WHEN i < 500000 THEN CAST(i AS VARCHAR) ELSE 'not a number' END AS INTEGER) FROM range(1000000) t(i)";
+        Command.CommandText = "SELECT CAST(CASE WHEN i < 5000000 THEN CAST(i AS VARCHAR) ELSE 'not a number' END AS INTEGER) FROM range(10000000) t(i)";
 
         using var stream = Command.ExecuteArrowStream();
 

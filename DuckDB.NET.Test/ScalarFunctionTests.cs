@@ -114,10 +114,10 @@ public class ScalarFunctionTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
     public void RegisterScalarFunctionCallbackThrowsInLaterStreamingChunk()
     {
         Connection.RegisterScalarFunction<long, long>("throwing_late_scalar",
-            x => x < 500_000 ? x : throw new InvalidOperationException("Scalar callback failed late"));
+            x => x < 5_000_000 ? x : throw new InvalidOperationException("Scalar callback failed late"));
 
         Command.UseStreamingMode = true;
-        Command.CommandText = "SELECT throwing_late_scalar(i) FROM range(1000000) t(i)";
+        Command.CommandText = "SELECT throwing_late_scalar(i) FROM range(10000000) t(i)";
 
         using (var reader = Command.ExecuteReader())
         {
