@@ -254,7 +254,7 @@ public struct DuckDBQueryProgress
     public ulong TotalRowsToProcess { get; }
 }
 
-[Obsolete("DuckDB 2.0 renamed its profiling metrics. Track metrics by name with ProfilingOptions.TrackedMetrics (see DuckDBMetricNames) and read them from ProfilingInfoMetrics.ByName. This enum keeps working through a mapping to the 2.0 names; RowsReturned and OperatorName are not reported by DuckDB 2.0.")]
+[Obsolete("DuckDB 2.0 renamed its profiling metrics. Track metrics by name with ProfilingOptions.TrackedMetrics (see DuckDBMetricNames) and read them from ProfilingInfoMetrics.ByName. This enum keeps working through a mapping to the 2.0 names, except that RowsReturned (throws), OperatorName and the per-operator metrics ExtraInfo, OperatorCardinality, OperatorRowsScanned, OperatorTiming and OperatorType are not reported.")]
 public enum DuckDBMetricType
 {
     // Core metrics

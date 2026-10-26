@@ -115,9 +115,9 @@ internal static class MetricMapping
         var names = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        void Add(string? name)
+        void Add(string name)
         {
-            if (!string.IsNullOrWhiteSpace(name) && seen.Add(name))
+            if (seen.Add(name))
             {
                 names.Add(name);
             }
@@ -127,7 +127,11 @@ internal static class MetricMapping
         {
             foreach (var metric in legacyMetrics)
             {
-                Add(ToName(metric));
+                // Metrics DuckDB 2.0 does not report (OperatorName) have no name.
+                if (ToName(metric) is { } name)
+                {
+                    Add(name);
+                }
 
                 // The size of the result set is read from the root operator, which is found below the result collector.
                 if (metric == DuckDBMetricType.ResultSetSize)
@@ -139,17 +143,24 @@ internal static class MetricMapping
 
         if (trackedMetrics != null)
         {
-            foreach (var name in trackedMetrics)
+            foreach (var tracked in trackedMetrics)
             {
-                Add(name);
+                var name = tracked?.Trim();
+                if (string.IsNullOrEmpty(name))
+                {
+                    throw new ArgumentException("TrackedMetrics contains a null or blank metric name.", nameof(trackedMetrics));
+                }
+
+                // DuckDB metric names are lower case; normalizing keeps what is sent to DuckDB and what IsTracked matches in agreement.
+                Add(name.ToLowerInvariant());
             }
         }
 
         return names;
     }
 
-    /// <summary>Whether <paramref name="name"/> is selected by one of the tracked names or globs (<c>*</c>, <c>group.*</c>).</summary>
-    private static bool IsTracked(IReadOnlyList<string>? tracked, string name)
+    /// <summary>Whether <paramref name="name"/> is selected by one of the tracked names or globs (<c>*</c> matches any run of characters).</summary>
+    internal static bool IsTracked(IReadOnlyList<string>? tracked, string name)
     {
         if (tracked == null)
         {
@@ -158,8 +169,41 @@ internal static class MetricMapping
 
         foreach (var pattern in tracked)
         {
-            if (pattern == "*" || pattern == name ||
-                (pattern.EndsWith('*') && name.StartsWith(pattern.AsSpan(0, pattern.Length - 1), StringComparison.Ordinal)))
+            if (MatchesGlob(pattern, name))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool MatchesGlob(ReadOnlySpan<char> pattern, ReadOnlySpan<char> name)
+    {
+        var star = pattern.IndexOf('*');
+        if (star < 0)
+        {
+            return pattern.Equals(name, StringComparison.OrdinalIgnoreCase);
+        }
+
+        var head = pattern[..star];
+        if (!name.StartsWith(head, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Skip stars that follow each other, then try every split of the rest of the name.
+        var rest = pattern[(star + 1)..].TrimStart('*');
+        name = name[head.Length..];
+
+        if (rest.IsEmpty)
+        {
+            return true;
+        }
+
+        for (var i = 0; i <= name.Length; i++)
+        {
+            if (MatchesGlob(rest, name[i..]))
             {
                 return true;
             }
@@ -178,13 +222,20 @@ internal static class MetricMapping
         var assigned = new HashSet<string>(StringComparer.Ordinal);
         string? resultSetSize = null;
 
+        // The collectors that wrap the plan are told apart by the operator type, so the size is only meaningful when both are tracked.
+        var canReadResultSetSize = IsTracked(tracked, OperatorIntermediateSizeBytes) && IsTracked(tracked, DuckDBMetricNames.OperatorType);
+
         for (ulong i = 0; i < root.GetChildCount(); i++)
         {
             using var child = root.GetChild(i);
 
             if (child.GetChildCount() > 0 || IsOperatorNode(child))
             {
-                resultSetSize ??= ReadResultSetSize(child);
+                if (canReadResultSetSize)
+                {
+                    resultSetSize ??= ReadResultSetSize(child);
+                }
+
                 continue;
             }
 
@@ -242,7 +293,14 @@ internal static class MetricMapping
                 using var metricsValue = node.GetMetrics();
                 var metrics = metricsValue.IsNull() ? [] : metricsValue.GetMapValue<string, string>();
 
-                if (metrics.GetValueOrDefault("type") is not ("RESULT_COLLECTOR" or "EXECUTE") || node.GetChildCount() == 0)
+                var type = metrics.GetValueOrDefault("type");
+                if (type == null)
+                {
+                    // Without the type a collector cannot be told from the root operator: its size would be wrong.
+                    return null;
+                }
+
+                if (type is not ("RESULT_COLLECTOR" or "EXECUTE") || node.GetChildCount() == 0)
                 {
                     return metrics.GetValueOrDefault("intermediate_size_bytes");
                 }

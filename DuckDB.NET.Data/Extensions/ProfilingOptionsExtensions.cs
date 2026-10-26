@@ -20,7 +20,20 @@ namespace DuckDB.NET.Data.Extensions
             var names = MetricMapping.ToTrackedNames(options.EnabledMetrics, options.TrackedMetrics);
 #pragma warning restore CS0618
 
-            return names.Count > 0 ? names : MetricMapping.ToTrackedNames(DuckDBMetrics.DefaultMetrics, null);
+            if (names.Count > 0)
+            {
+                return names;
+            }
+
+#pragma warning disable CS0618
+            if (options.EnabledMetrics is { Count: > 0 })
+#pragma warning restore CS0618
+            {
+                // Falling back to the default set would hand back metrics the caller did not ask for.
+                throw new DuckDBException("None of the EnabledMetrics is reported by DuckDB 2.0. Use TrackedMetrics to select metrics.", DuckDBErrorType.InvalidInput);
+            }
+
+            return MetricMapping.ToTrackedNames(DuckDBMetrics.DefaultMetrics, null);
         }
 
         public static string ToDuckDBProfilingOptionString(this ProfilingOptions options)

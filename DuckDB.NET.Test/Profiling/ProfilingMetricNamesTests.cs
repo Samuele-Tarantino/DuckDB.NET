@@ -131,6 +131,116 @@ public class ProfilingMetricNamesTests
     }
 
     [Fact]
+    public void DefaultOptionsReportTheDefaultMetrics()
+    {
+        var metrics = Profile(Options(), "SELECT 42");
+
+        metrics.ByName.Keys.Should().Contain([DuckDBMetricNames.QuerySql, DuckDBMetricNames.QueryTotalTime, DuckDBMetricNames.QueryCpuTime]);
+        metrics.Keys.Should().Contain(DuckDBMetricType.QueryName);
+    }
+
+    [Fact]
+    public void EmptyTrackedMetricsFallBackToTheDefaultMetrics()
+    {
+        var metrics = Profile(Options(tracked: [], legacy: []), "SELECT 42");
+
+        metrics.ByName.Keys.Should().Contain(DuckDBMetricNames.QuerySql);
+    }
+
+    [Fact]
+    public void LegacyOperatorMetricsAreAcceptedButNotReported()
+    {
+        DuckDBMetricType[] operatorMetrics =
+        [
+            DuckDBMetricType.ExtraInfo, DuckDBMetricType.OperatorCardinality, DuckDBMetricType.OperatorRowsScanned,
+            DuckDBMetricType.OperatorTiming, DuckDBMetricType.OperatorType
+        ];
+
+        Profile(Options(legacy: [.. operatorMetrics]), "SELECT 42").Keys.Should().BeEmpty();
+        Profile(Options(legacy: [.. operatorMetrics, DuckDBMetricType.QueryName]), "SELECT 42").Keys.Should().BeEquivalentTo([DuckDBMetricType.QueryName]);
+    }
+
+    [Fact]
+    public void OnlyUnreportedLegacyMetricsThrowInsteadOfFallingBackToTheDefaults()
+    {
+        var act = () => Profile(Options(legacy: [DuckDBMetricType.OperatorName]), "SELECT 42");
+
+        act.Should().Throw<DuckDBException>();
+    }
+
+    [Fact]
+    public void TrackedMetricNamesAreTrimmedAndCaseInsensitive()
+    {
+        var metrics = Profile(Options(tracked: ["  QUERY.Total_Time ", DuckDBMetricNames.QueryTotalTime]), "SELECT 42");
+
+        metrics.ByName.Keys.Should().BeEquivalentTo(DuckDBMetricNames.QueryTotalTime);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void BlankTrackedMetricNamesThrow(string? name)
+    {
+        var act = () => Profile(Options(tracked: [name!]), "SELECT 42");
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData("*", "query.total_time", true)]
+    [InlineData("query.*", "query.total_time", true)]
+    [InlineData("query.*", "planner.total_time", false)]
+    [InlineData("*.total_time", "planner.total_time", true)]
+    [InlineData("*.total_time", "planner.binding_time", false)]
+    [InlineData("QUERY.*", "query.cpu_time", true)]
+    [InlineData("query.*_time", "query.cpu_time", true)]
+    [InlineData("query.*_time", "query.sql", false)]
+    [InlineData("q*y.*time", "query.total_time", true)]
+    [InlineData("query.total_time", "query.total_time", true)]
+    [InlineData("query.total", "query.total_time", false)]
+    public void GlobsMatchAnywhereAndIgnoreCase(string pattern, string name, bool expected)
+    {
+        Data.Profiling.Statistics.MetricMapping.IsTracked([pattern], name).Should().Be(expected);
+    }
+
+    [Fact]
+    public void ResultSetSizeIsOnlyReportedWhenTheOperatorTypeIsTracked()
+    {
+        const string sql = "SELECT i FROM range(1000) t(i)";
+
+        var withType = Profile(Options(tracked: [DuckDBMetricNames.OperatorIntermediateSizeBytes, DuckDBMetricNames.OperatorType]), sql);
+        withType.Keys.Should().Contain(DuckDBMetricType.ResultSetSize);
+
+        // Without the type the collector that wraps the plan cannot be told from the root operator.
+        var withoutType = Profile(Options(tracked: [DuckDBMetricNames.OperatorIntermediateSizeBytes]), sql);
+        withoutType.Keys.Should().NotContain(DuckDBMetricType.ResultSetSize);
+
+        var unrelated = Profile(Options(tracked: [DuckDBMetricNames.QuerySql]), sql);
+        unrelated.Keys.Should().NotContain(DuckDBMetricType.ResultSetSize);
+    }
+
+    [Fact]
+    public void ResultSetSizeOfAPreparedStatementIsTheSizeOfTheRootOperator()
+    {
+        using var connection = new DuckDBConnection("DataSource=:memory:");
+        connection.Open();
+        connection.EnableProfiling(Options(legacy: [DuckDBMetricType.ResultSetSize]));
+
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT i FROM range(1000) t(i) WHERE i < $1";
+        command.Parameters.Add(new DuckDBParameter { Value = 100 });
+        command.Prepare();
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read()) { }
+        }
+
+        var metrics = connection.RetrieveStatistics().QuerySummaryList.Last().StatementSummaries.Last().Metrics;
+        metrics[DuckDBMetricType.ResultSetSize].Should().Be("800");
+    }
+
+    [Fact]
     public void RowsReturnedStaysUnsupported()
     {
         var act = () => Profile(Options(legacy: [DuckDBMetricType.RowsReturned]), "SELECT 1");
