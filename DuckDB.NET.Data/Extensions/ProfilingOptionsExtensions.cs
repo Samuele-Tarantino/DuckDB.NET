@@ -11,29 +11,13 @@ namespace DuckDB.NET.Data.Extensions
     internal static class ProfilingOptionsExtensions
     {
         /// <summary>
-        /// The DuckDB 2.0 metric names to track: the legacy <c>EnabledMetrics</c> mapped to their 2.0 names plus <c>TrackedMetrics</c>,
-        /// or the default set when neither is given.
+        /// The DuckDB 2.0 metric names to track: <c>TrackedMetrics</c>, or <c>DuckDBMetrics.DefaultTrackedMetrics</c> when it is not set.
         /// </summary>
         public static IReadOnlyList<string> GetTrackedMetrics(this ProfilingOptions options)
         {
-#pragma warning disable CS0618 // EnabledMetrics is deprecated but still honored.
-            var names = MetricMapping.ToTrackedNames(options.EnabledMetrics, options.TrackedMetrics);
-#pragma warning restore CS0618
+            var names = ProfilingTreeReader.ToTrackedNames(options.TrackedMetrics);
 
-            if (names.Count > 0)
-            {
-                return names;
-            }
-
-#pragma warning disable CS0618
-            if (options.EnabledMetrics is { Count: > 0 })
-#pragma warning restore CS0618
-            {
-                // Falling back to the default set would hand back metrics the caller did not ask for.
-                throw new DuckDBException("None of the EnabledMetrics is reported by DuckDB 2.0. Use TrackedMetrics to select metrics.", DuckDBErrorType.InvalidInput);
-            }
-
-            return MetricMapping.ToTrackedNames(DuckDBMetrics.DefaultMetrics, null);
+            return names.Count > 0 ? names : ProfilingTreeReader.ToTrackedNames(DuckDBMetrics.DefaultTrackedMetrics);
         }
 
         public static string ToDuckDBProfilingOptionString(this ProfilingOptions options)

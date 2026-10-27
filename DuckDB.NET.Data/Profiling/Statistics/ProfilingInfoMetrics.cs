@@ -1,17 +1,17 @@
-﻿#pragma warning disable CS0618 // The legacy DuckDBMetricType keys are kept for existing callers.
-
-namespace DuckDB.NET.Data.Profiling.Statistics;
+﻿namespace DuckDB.NET.Data.Profiling.Statistics;
 
 /// <summary>
-/// The metrics collected for a statement. As a dictionary it is keyed by the legacy <see cref="DuckDBMetricType"/>;
-/// <see cref="ByName"/> holds every metric under its DuckDB 2.0 name (see <see cref="DuckDBMetricNames"/>).
+/// The metrics collected for a statement, by DuckDB 2.0 metric name (see <see cref="DuckDBMetricNames"/>), e.g.
+/// <c>query.total_time</c>, with the raw value DuckDB reported.
 /// </summary>
-public sealed class ProfilingInfoMetrics : Dictionary<DuckDBMetricType, object>
+public sealed class ProfilingInfoMetrics : Dictionary<string, string>
 {
-    private static readonly IReadOnlyDictionary<string, string> NoMetrics = new Dictionary<string, string>();
-
-    /// <summary>The metrics by DuckDB 2.0 name, e.g. <c>query.total_time</c>, with the raw value DuckDB reported.</summary>
-    public IReadOnlyDictionary<string, string> ByName { get; private init; } = NoMetrics;
+    /// <summary>
+    /// The size in bytes of the result set: the output of the root operator of the plan. Available when
+    /// <see cref="DuckDBMetricNames.OperatorType"/> and <see cref="DuckDBMetricNames.OperatorIntermediateSizeBytes"/> are tracked
+    /// (both are in <see cref="DuckDBMetrics.DefaultTrackedMetrics"/>), otherwise null.
+    /// </summary>
+    public ulong? ResultSetSizeBytes { get; private init; }
 
     internal static ProfilingInfoMetrics FromTree(ProfilingTreeMetrics? tree)
     {
@@ -20,20 +20,14 @@ public sealed class ProfilingInfoMetrics : Dictionary<DuckDBMetricType, object>
             return [];
         }
 
-        ProfilingInfoMetrics result = new() { ByName = tree.ByName };
+        var result = new ProfilingInfoMetrics
+        {
+            ResultSetSizeBytes = ulong.TryParse(tree.ResultSetSize, out var size) ? size : null
+        };
 
         foreach (var (name, value) in tree.ByName)
         {
-            if (MetricMapping.TryGetLegacy(name, out var metricType))
-            {
-                result[metricType] = value;
-            }
-        }
-
-        // DuckDB 2.0 has no result set size metric: it is the output size of the root operator of the plan.
-        if (tree.ResultSetSize != null)
-        {
-            result[DuckDBMetricType.ResultSetSize] = tree.ResultSetSize;
+            result[name] = value;
         }
 
         return result;

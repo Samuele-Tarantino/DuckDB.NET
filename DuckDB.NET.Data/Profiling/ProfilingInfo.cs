@@ -39,7 +39,7 @@ internal sealed class ProfilingInfo: IDisposable
             throw new InvalidOperationException("Profiling info is not prepared. Call TryPrepare() first.");
         }
 
-        return MetricMapping.Flatten(duckDBProfilingInfoWrapper, tracked);
+        return ProfilingTreeReader.Flatten(duckDBProfilingInfoWrapper, tracked);
     }
 
     public void Dispose()

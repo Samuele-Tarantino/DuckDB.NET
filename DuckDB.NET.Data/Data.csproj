@@ -4,8 +4,8 @@
     <Description>DuckDB ADO.NET Provider for C#.</Description>
     <PackageReleaseNotes>
 - Updated to DuckDB v2.0.0
-- Profiling: DuckDB 2.0 renamed its metrics. DuckDBMetricType, DuckDBMetricTypeCollection and ProfilingOptions.EnabledMetrics are deprecated but keep working through a mapping to the 2.0 names, except RowsReturned (throws), OperatorName and the per-operator metrics ExtraInfo, OperatorCardinality, OperatorRowsScanned, OperatorTiming and OperatorType, which are not reported
-- Profiling: new ProfilingOptions.TrackedMetrics (metric names or globs), ProfilingInfoMetrics.ByName and DuckDBMetricNames
+- BREAKING, profiling: DuckDB 2.0 renamed its metrics (query.cpu_time, io.total_bytes_read, ...). DuckDBMetricType, DuckDBMetricTypeCollection, ProfilingOptions.EnabledMetrics and DuckDBMetrics.AllMetrics/DefaultMetrics were removed
+- Profiling: select metrics by name or glob with ProfilingOptions.TrackedMetrics (see DuckDBMetricNames); ProfilingInfoMetrics is now keyed by the metric name and has ResultSetSizeBytes; DuckDBMetrics.DefaultTrackedMetrics replaces the default set
 
 New features:
 - Typed properties for 24 DuckDB configuration options on DuckDBConnectionStringBuilder

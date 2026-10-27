@@ -1,24 +1,15 @@
-#pragma warning disable CS0618 // The legacy DuckDBMetricType is what this class translates from and to.
-
 using System.Collections.Frozen;
 using System.Linq;
-using System.Text.Json;
 
 namespace DuckDB.NET.Data.Profiling.Statistics;
 
 /// <summary>
-/// Translates between the legacy <see cref="DuckDBMetricType"/> enum (DuckDB 1.x metric names) and the metric
-/// names of DuckDB 2.0, and flattens the 2.0 profiling tree.
+/// Selects the metrics to track and flattens the profiling tree DuckDB 2.0 returns: an empty root with one child per
+/// metric group plus the operator tree.
 /// </summary>
-internal static class MetricMapping
+internal static class ProfilingTreeReader
 {
     internal const string OperatorIntermediateSizeBytes = DuckDBMetricNames.OperatorIntermediateSizeBytes;
-
-    private static readonly FrozenDictionary<DuckDBMetricType, string> LegacyToName = BuildLegacyToName();
-
-    private static readonly FrozenDictionary<string, DuckDBMetricType> NameToLegacy =
-        LegacyToName.Where(kv => !kv.Value.StartsWith("operator.", StringComparison.Ordinal) && !kv.Value.EndsWith(".*", StringComparison.Ordinal))
-                    .ToFrozenDictionary(kv => kv.Value, kv => kv.Key);
 
     // Metrics of every group but the operator tree and the optimizers, by group. A node of the profiling tree carries the
     // metrics of one group without the group prefix, so the group has to be recovered from the keys.
@@ -36,81 +27,8 @@ internal static class MetricMapping
     // The order DuckDB lists the groups in when several of them can explain the same keys (only "total_time" is shared).
     private static readonly string[] GroupOrder = ["query", "optimizer", "physical_planner", "system", "planner", "io", "storage", "parser"];
 
-    private static FrozenDictionary<DuckDBMetricType, string> BuildLegacyToName()
-    {
-        var map = new Dictionary<DuckDBMetricType, string>
-        {
-            [DuckDBMetricType.QueryName] = DuckDBMetricNames.QuerySql,
-            [DuckDBMetricType.Latency] = DuckDBMetricNames.QueryTotalTime,
-            [DuckDBMetricType.CpuTime] = DuckDBMetricNames.QueryCpuTime,
-            [DuckDBMetricType.CumulativeCardinality] = DuckDBMetricNames.QueryTotalIntermediateRows,
-            [DuckDBMetricType.CumulativeRowsScanned] = DuckDBMetricNames.QueryTotalRowsScanned,
-            [DuckDBMetricType.ResultSetSize] = OperatorIntermediateSizeBytes,
-            [DuckDBMetricType.ExtraInfo] = DuckDBMetricNames.OperatorExtraInfo,
-
-            [DuckDBMetricType.BlockedThreadTime] = DuckDBMetricNames.SystemBlockedThreadTime,
-            [DuckDBMetricType.SystemPeakBufferMemory] = DuckDBMetricNames.SystemPeakBufferMemory,
-            [DuckDBMetricType.SystemPeakTempDirSize] = DuckDBMetricNames.SystemPeakTempDirSize,
-            [DuckDBMetricType.TotalMemoryAllocated] = DuckDBMetricNames.SystemTotalMemoryAllocated,
-
-            [DuckDBMetricType.TotalBytesRead] = DuckDBMetricNames.IoTotalBytesRead,
-            [DuckDBMetricType.TotalBytesWritten] = DuckDBMetricNames.IoTotalBytesWritten,
-
-            [DuckDBMetricType.AttachLoadStorageLatency] = DuckDBMetricNames.StorageAttachLoadStorageLatency,
-            [DuckDBMetricType.AttachReplayWalLatency] = DuckDBMetricNames.StorageAttachReplayWalLatency,
-            [DuckDBMetricType.CheckpointLatency] = DuckDBMetricNames.StorageCheckpointLatency,
-            [DuckDBMetricType.CommitLocalStorageLatency] = DuckDBMetricNames.StorageCommitLocalStorageLatency,
-            [DuckDBMetricType.WaitingToAttachLatency] = DuckDBMetricNames.StorageWaitingToAttachLatency,
-            [DuckDBMetricType.WalReplayEntryCount] = DuckDBMetricNames.StorageWalReplayEntryCount,
-            [DuckDBMetricType.WriteToWalLatency] = DuckDBMetricNames.StorageWriteToWalLatency,
-
-            [DuckDBMetricType.OperatorCardinality] = DuckDBMetricNames.OperatorIntermediateRows,
-            [DuckDBMetricType.OperatorRowsScanned] = DuckDBMetricNames.OperatorRowsScanned,
-            [DuckDBMetricType.OperatorTiming] = DuckDBMetricNames.OperatorTiming,
-            [DuckDBMetricType.OperatorType] = DuckDBMetricNames.OperatorType,
-
-            [DuckDBMetricType.AllOptimizers] = DuckDBMetricNames.OptimizerAll,
-            [DuckDBMetricType.CumulativeOptimizerTiming] = DuckDBMetricNames.OptimizerTotalTime,
-            [DuckDBMetricType.PhysicalPlanner] = DuckDBMetricNames.PhysicalPlannerTotalTime,
-            [DuckDBMetricType.PhysicalPlannerColumnBinding] = DuckDBMetricNames.PhysicalPlannerColumnBinding,
-            [DuckDBMetricType.PhysicalPlannerCreatePlan] = DuckDBMetricNames.PhysicalPlannerCreatePlan,
-            [DuckDBMetricType.PhysicalPlannerResolveTypes] = DuckDBMetricNames.PhysicalPlannerResolveTypes,
-            [DuckDBMetricType.Planner] = DuckDBMetricNames.PlannerTotalTime,
-            [DuckDBMetricType.PlannerBinding] = DuckDBMetricNames.PlannerBindingTime,
-
-            // Not reported by DuckDB 2.0: RowsReturned (never available) and OperatorName (2.0 only reports the operator type).
-        };
-
-        // OptimizerFilterPullup -> optimizer.filter_pullup; the sum rewriter became the aggregate function rewriter.
-        foreach (var metric in Enum.GetValues<DuckDBMetricType>())
-        {
-            var name = metric.ToString();
-            if (name.StartsWith("Optimizer", StringComparison.Ordinal) && !map.ContainsKey(metric))
-            {
-                map[metric] = "optimizer." + JsonNamingPolicy.SnakeCaseLower.ConvertName(name["Optimizer".Length..]);
-            }
-        }
-
-        map[DuckDBMetricType.OptimizerSumRewriter] = "optimizer.aggregate_function_rewriter";
-
-        return map.ToFrozenDictionary();
-    }
-
-    /// <summary>The DuckDB 2.0 name of a legacy metric, or null when 2.0 does not report it.</summary>
-    internal static string? ToName(DuckDBMetricType metric)
-    {
-        if (metric == DuckDBMetricType.RowsReturned)
-        {
-            throw new DuckDBException($"The '{DuckDBMetricType.RowsReturned}' metric is not supported yet.", DuckDBErrorType.InvalidInput);
-        }
-
-        return LegacyToName.GetValueOrDefault(metric);
-    }
-
-    internal static bool TryGetLegacy(string name, out DuckDBMetricType metric) => NameToLegacy.TryGetValue(name, out metric);
-
-    /// <summary>The names to track for the given options, de-duplicated and in a stable order.</summary>
-    internal static List<string> ToTrackedNames(IEnumerable<DuckDBMetricType>? legacyMetrics, IEnumerable<string>? trackedMetrics)
+    /// <summary>The names to track, de-duplicated and in a stable order.</summary>
+    internal static List<string> ToTrackedNames(IEnumerable<string>? trackedMetrics)
     {
         var names = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -120,24 +38,6 @@ internal static class MetricMapping
             if (seen.Add(name))
             {
                 names.Add(name);
-            }
-        }
-
-        if (legacyMetrics != null)
-        {
-            foreach (var metric in legacyMetrics)
-            {
-                // Metrics DuckDB 2.0 does not report (OperatorName) have no name.
-                if (ToName(metric) is { } name)
-                {
-                    Add(name);
-                }
-
-                // The size of the result set is read from the root operator, which is found below the result collector.
-                if (metric == DuckDBMetricType.ResultSetSize)
-                {
-                    Add(DuckDBMetricNames.OperatorType);
-                }
             }
         }
 
