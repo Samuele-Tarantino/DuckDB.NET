@@ -111,20 +111,21 @@ public class TransactionTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
     [Fact]
     public void AbortedTransactionTest()
     {
-        // This block of code is to make the transaction commit fail using a catalog limitation in duckdb
-        // (https://github.com/duckdb/duckdb/issues/20570)
-        Command.CommandText = "CREATE TABLE IF NOT EXISTS test_table (id INTEGER, col INTEGER);";
-        Command.ExecuteNonQuery();
-        Command.CommandText = "INSERT INTO test_table VALUES (1, 1);";
+        // Make the transaction commit fail with a conflict that is only detected at commit time: another connection
+        // commits the same primary key while this transaction still holds its own uncommitted insert.
+        Command.CommandText = "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, col INTEGER);";
         Command.ExecuteNonQuery();
 
         using var tx2 = Connection.BeginTransaction();
         Command.Transaction = tx2;
-        Command.CommandText = "UPDATE test_table SET id = 2;";
+        Command.CommandText = "INSERT INTO test_table VALUES (1, 1);";
         Command.ExecuteNonQuery();
 
-        Command.CommandText = "ALTER TABLE test_table DROP COLUMN id;";
-        Command.ExecuteNonQuery();
+        using var otherConnection = Connection.Duplicate();
+        otherConnection.Open();
+        using var otherCommand = otherConnection.CreateCommand();
+        otherCommand.CommandText = "INSERT INTO test_table VALUES (1, 2);";
+        otherCommand.ExecuteNonQuery();
 
         using (new FluentAssertions.Execution.AssertionScope())
         {

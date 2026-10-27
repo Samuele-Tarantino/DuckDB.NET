@@ -12,7 +12,7 @@ connection.EnableProfiling(new ProfilingOptions {
   Format = DuckDBProfilingFormat.Json,
   Mode = DuckDBProfilingMode.Standard,
   //OutputPath = "profiling-output.json",           // optional path for generated files
-  // EnabledMetrics = new DuckDBMetricTypeCollection(...), // optional: pick specific metrics
+  // TrackedMetrics = [DuckDBMetricNames.QueryTotalTime, "io.*"], // optional: DuckDB 2.0 metric names or globs
   MetricsThreshold = 5                         // optional: ignore measurements under X ms
 });
 ```
@@ -33,7 +33,7 @@ Console.WriteLine($"Collected {summary.QueryCount} queries");
 foreach (var q in summary.QuerySummaryList ?? Enumerable.Empty<ProfilingQuerySummary>())
 {
   var firstStatement = q.StatementSummaries != null && q.StatementSummaries.Length > 0
-    ? q.StatementSummaries[0].Metrics[MetricsType.QueryName]
+    ? q.StatementSummaries[0].Metrics[DuckDBMetricNames.QuerySql]
     : "(no statement)";
 
   Console.WriteLine($"Query: {firstStatement} — Duration: {q.ExecutionTimeMilliseconds} ms");
@@ -71,4 +71,4 @@ ProfilingOptions fields
 
 - `MetricsThreshold` (int): optional threshold in milliseconds; measurements shorter than this are ignored to reduce noise.
 - `OutputPath` (string): optional file path for query plan output.
-- `EnabledMetrics` (DuckDBMetricTypeCollection): optional collection of metric types to collect; omit to use the library defaults.
+- `TrackedMetrics` (IReadOnlyCollection<string>): optional DuckDB 2.0 metric names or globs to collect (see `DuckDBMetricNames`, e.g. `"query.total_time"` or `"io.*"`); omit to use `DuckDBMetrics.DefaultTrackedMetrics`. `Metrics` is a dictionary keyed by the same names; `Metrics.ResultSetSizeBytes` is derived from the operator tree when `operator.type` and `operator.intermediate_size_bytes` are tracked.

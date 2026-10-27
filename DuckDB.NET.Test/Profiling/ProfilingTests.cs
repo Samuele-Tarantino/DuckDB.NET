@@ -16,7 +16,6 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection(),
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -58,7 +57,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -99,7 +98,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             var options = new ProfilingOptions
             {
                 Coverage = DuckDBProfilingCoverage.All,
-                EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+                TrackedMetrics = [DuckDBMetricNames.QuerySql],
                 Format = DuckDBProfilingFormat.Json,
                 Mode = DuckDBProfilingMode.Standard,
                 OutputPath = tempLocation
@@ -170,7 +169,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -207,7 +206,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard,
             OutputPath = tempLocation
@@ -233,7 +232,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
 
             jsonFiles.Length.Should().BeGreaterThan(0, "Expected at least one JSON file in the profiling output path");
 
-            // parse the first JSON file and assert it contains a property named "QueryName" somewhere
+            // parse the first JSON file and assert it contains the query text (QueryName is query.sql in DuckDB 2.0) somewhere
             var json = File.ReadAllText(jsonFiles[0]);
             using var doc = JsonDocument.Parse(json);
 
@@ -245,7 +244,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
                 {
                     foreach (var prop in el.EnumerateObject())
                     {
-                        if (string.Equals(prop.Name, DuckDBMetricsExtensions.ToDuckDBMetricTypeString(DuckDBMetricType.QueryName), StringComparison.OrdinalIgnoreCase))
+                        if (string.Equals(prop.Name, "sql", StringComparison.OrdinalIgnoreCase))
                         {
                             found = true;
                             return;
@@ -286,7 +285,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             var options = new ProfilingOptions
             {
                 Coverage = DuckDBProfilingCoverage.All,
-                EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+                TrackedMetrics = [DuckDBMetricNames.QuerySql],
                 Format = DuckDBProfilingFormat.Json,
                 Mode = DuckDBProfilingMode.Standard,
                 OutputPath = tempLocation
@@ -315,7 +314,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
                 var newOptions = new ProfilingOptions
                 {
                     Coverage = DuckDBProfilingCoverage.All,
-                    EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+                    TrackedMetrics = [DuckDBMetricNames.QuerySql],
                     Format = DuckDBProfilingFormat.Json,
                     Mode = DuckDBProfilingMode.Standard
                 };
@@ -353,7 +352,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -457,7 +456,6 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection(),
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -512,7 +510,6 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection(),
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -580,7 +577,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName, DuckDBMetricType.CpuTime },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql, DuckDBMetricNames.QueryCpuTime],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard,
             MetricsThreshold = 1 // very small threshold so a heavy query will exceed it
@@ -604,7 +601,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             last.StatementSummaries.Should().NotBeNull();
 
             // When execution is over the metrics threshold, at least one statement should contain enabled metrics
-            var hasMetrics = last.StatementSummaries.Any(i => i.Metrics.ContainsKey(DuckDBMetricType.QueryName) || i.Metrics.ContainsKey(DuckDBMetricType.CpuTime));
+            var hasMetrics = last.StatementSummaries.Any(i => i.Metrics.ContainsKey(DuckDBMetricNames.QuerySql) || i.Metrics.ContainsKey(DuckDBMetricNames.QueryCpuTime));
             hasMetrics.Should().BeTrue("Metrics should be collected when execution time exceeds MetricsThresholdMS");
         }
         finally
@@ -619,7 +616,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard,
             MetricsThreshold = 10000 // high threshold to prevent metrics collection for a short query
@@ -655,7 +652,6 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection(),
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -702,7 +698,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName, DuckDBMetricType.CpuTime },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql, DuckDBMetricNames.QueryCpuTime],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -728,8 +724,8 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             var last = newSummaries.Last().StatementSummaries;
 
             // check that enabled metrics appear in at least one statement's metrics
-            var containsQueryName = last.Any(i => i.Metrics.ContainsKey(DuckDBMetricType.QueryName));
-            var containsCpuTime = last.Any(i => i.Metrics.ContainsKey(DuckDBMetricType.CpuTime));
+            var containsQueryName = last.Any(i => i.Metrics.ContainsKey(DuckDBMetricNames.QuerySql));
+            var containsCpuTime = last.Any(i => i.Metrics.ContainsKey(DuckDBMetricNames.QueryCpuTime));
 
             containsQueryName.Should().BeTrue();
             containsCpuTime.Should().BeTrue();
@@ -744,9 +740,9 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
     public void EnableProfilingWithoutOptionsUsesDefaults()
     {
         // enable profiling with explicit empty options - should use defaults
-        var defaultMetrics = DuckDBMetrics.DefaultMetrics.ToList();
-        _ = defaultMetrics.Remove(DuckDBMetricType.QueryName);
-        var options = new ProfilingOptions { Coverage = DuckDBProfilingCoverage.All, EnabledMetrics = new DuckDBMetricTypeCollection(defaultMetrics) };
+        var defaultMetrics = DuckDBMetrics.DefaultTrackedMetrics.ToList();
+        _ = defaultMetrics.Remove(DuckDBMetricNames.QuerySql);
+        var options = new ProfilingOptions { Coverage = DuckDBProfilingCoverage.All, TrackedMetrics = defaultMetrics };
 
         var con = new DuckDBConnection("data source=:memory:");
         con.Open();
@@ -809,7 +805,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             var options = new ProfilingOptions
             {
                 Coverage = DuckDBProfilingCoverage.All,
-                EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+                TrackedMetrics = [DuckDBMetricNames.QuerySql],
                 Format = DuckDBProfilingFormat.Json,
                 Mode = DuckDBProfilingMode.Standard
             };
@@ -848,7 +844,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -897,7 +893,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName, DuckDBMetricType.CpuTime, DuckDBMetricType.Latency },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql, DuckDBMetricNames.QueryCpuTime, DuckDBMetricNames.QueryTotalTime],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -934,8 +930,8 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
                 var last1 = s1.QuerySummaryList.Last();
                 var last2 = s2.QuerySummaryList.Last();
 
-                var keys1 = new HashSet<DuckDBMetricType>(last1.StatementSummaries.SelectMany(i => i.Metrics.Keys));
-                var keys2 = new HashSet<DuckDBMetricType>(last2.StatementSummaries.SelectMany(i => i.Metrics.Keys));
+                var keys1 = new HashSet<string>(last1.StatementSummaries.SelectMany(i => i.Metrics.Keys));
+                var keys2 = new HashSet<string>(last2.StatementSummaries.SelectMany(i => i.Metrics.Keys));
 
                 // strict check: both sets of metric keys must match
                 keys1.Should().BeEquivalentTo(keys2);
@@ -951,7 +947,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName, DuckDBMetricType.CpuTime, DuckDBMetricType.Latency },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql, DuckDBMetricNames.QueryCpuTime, DuckDBMetricNames.QueryTotalTime],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -984,8 +980,8 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
             var lastOriginal = sOriginal.QuerySummaryList.Last();
             var lastDup = sDup.QuerySummaryList.Last();
 
-            var keysOrig = new HashSet<DuckDBMetricType>(lastOriginal.StatementSummaries.SelectMany(i => i.Metrics.Keys));
-            var keysDup = new HashSet<DuckDBMetricType>(lastDup.StatementSummaries.SelectMany(i => i.Metrics.Keys));
+            var keysOrig = new HashSet<string>(lastOriginal.StatementSummaries.SelectMany(i => i.Metrics.Keys));
+            var keysDup = new HashSet<string>(lastDup.StatementSummaries.SelectMany(i => i.Metrics.Keys));
 
             // strict check: both sets of metric keys must match
             keysOrig.Should().BeEquivalentTo(keysDup);
@@ -1001,16 +997,16 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
     {
         var metricsToEnable = new[]
         {
-            DuckDBMetricType.QueryName,
-            DuckDBMetricType.CpuTime,
-            DuckDBMetricType.Latency,
-            DuckDBMetricType.TotalBytesRead
+            DuckDBMetricNames.QuerySql,
+            DuckDBMetricNames.QueryCpuTime,
+            DuckDBMetricNames.QueryTotalTime,
+            DuckDBMetricNames.IoTotalBytesRead
         };
 
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection(metricsToEnable),
+            TrackedMetrics = metricsToEnable,
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -1055,7 +1051,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.Select,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -1133,7 +1129,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -1170,7 +1166,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
@@ -1196,18 +1192,18 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
     }
 
     [Fact]
-    public void EnablingWithRowsReturnedMetricThrows()
+    public void EnablingWithBlankMetricNameThrows()
     {
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.All,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.RowsReturned },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql, " "],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };
 
         Action act = () => Connection.EnableProfiling(options);
-        act.Should().Throw<DuckDBException>().Where(e => e.Message.Contains("RowsReturned") || (e.InnerException != null && e.InnerException.Message.Contains("RowsReturned")));
+        act.Should().Throw<ArgumentException>();
     }
 
     [Fact]
@@ -1217,7 +1213,7 @@ public class ProfilingTests(DuckDBDatabaseFixture db) : DuckDBTestBase(db)
         var options = new ProfilingOptions
         {
             Coverage = DuckDBProfilingCoverage.Select,
-            EnabledMetrics = new DuckDBMetricTypeCollection { DuckDBMetricType.QueryName },
+            TrackedMetrics = [DuckDBMetricNames.QuerySql],
             Format = DuckDBProfilingFormat.Json,
             Mode = DuckDBProfilingMode.Standard
         };

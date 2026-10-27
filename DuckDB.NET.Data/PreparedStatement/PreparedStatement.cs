@@ -14,7 +14,7 @@ internal sealed class PreparedStatement : IDisposable
         this.statement = statement;
     }
 
-    public static IEnumerable<DuckDBResult> PrepareMultiple(DuckDBNativeConnection connection, string query, DuckDBParameterCollection parameters, bool useStreamingMode)
+    public static IEnumerable<DuckDBResult> PrepareMultiple(DuckDBNativeConnection connection, string query, DuckDBParameterCollection parameters, bool useStreamingMode, Action<DuckDBStatementType>? statementValidator = null)
     {
         var statementCount = NativeMethods.ExtractStatements.DuckDBExtractStatements(connection, query, out var extractedStatements);
 
@@ -48,6 +48,10 @@ internal sealed class PreparedStatement : IDisposable
                     {
                         using var preparedStatement = new PreparedStatement(statement);
                         preparedStatement.statementProfiler = statementProfiler;
+
+                        // Runs after this statement is prepared and before it is executed, so the validator sees the
+                        // effects of the previous statements of the batch (e.g. a table they created).
+                        statementValidator?.Invoke(NativeMethods.PreparedStatements.DuckDBPreparedStatementType(statement));
 
                         var result = preparedStatement.Execute(parameters, useStreamingMode, connection);
 
@@ -94,7 +98,6 @@ internal sealed class PreparedStatement : IDisposable
 
         try
         {
-
             BindParameters(statement, parameterCollection);
 
             var status = useStreamingMode
@@ -105,24 +108,17 @@ internal sealed class PreparedStatement : IDisposable
             {
                 var errorMessage = NativeMethods.Query.DuckDBResultError(ref queryResult);
                 var errorType = NativeMethods.Query.DuckDBResultErrorType(ref queryResult);
-                queryResult.Close();
 
-                if (string.IsNullOrEmpty(errorMessage))
+                profiler?.SetState(status, errorType, string.IsNullOrEmpty(errorMessage) ? "DuckDB execution failed" : errorMessage);
+
+                try
                 {
-                    errorMessage = "DuckDB execution failed";
+                    queryResult.ThrowOnError(connection, "DuckDB execution failed");
                 }
-
-                profiler?.SetState(status, errorType, errorMessage);
-
-                if (errorType == DuckDBErrorType.Interrupt)
+                finally
                 {
-                    throw new OperationCanceledException();
+                    queryResult.Close();
                 }
-
-                var innerException = UdfExceptionStore.Retrieve(connection);
-                throw innerException != null
-                    ? new DuckDBException(errorMessage, innerException)
-                    : new DuckDBException(errorMessage, errorType);
             }
 
             profiler?.AcquireMetrics();

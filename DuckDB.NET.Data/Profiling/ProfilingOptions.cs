@@ -1,4 +1,6 @@
-﻿namespace DuckDB.NET.Data.Profiling
+﻿using System.Collections.Generic;
+
+namespace DuckDB.NET.Data.Profiling
 {
     public readonly struct ProfilingOptions
     {
@@ -23,9 +25,11 @@
         public string OutputPath { get; init; }
 
         /// <summary>
-        /// The collection of enabled metrics for profiling.
+        /// The DuckDB 2.0 metric names or globs to track, e.g. <see cref="DuckDBMetricNames.QueryTotalTime"/> or <c>"query.*"</c>.
+        /// Names are trimmed and compared case-insensitively; a <c>*</c> matches any run of characters. Blank names throw.
+        /// Combined with <see cref="EnabledMetrics"/> when both are set; when neither is set (or both are empty) a default set is tracked.
         /// </summary>
-        public DuckDBMetricTypeCollection EnabledMetrics { get; init; }
+        public IReadOnlyCollection<string>? TrackedMetrics { get; init; }
 
         /// <summary>
         /// The threshold (in milliseconds) used for metrics acquisition.

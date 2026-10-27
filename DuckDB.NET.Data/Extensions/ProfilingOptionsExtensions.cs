@@ -1,4 +1,5 @@
 ﻿using DuckDB.NET.Data.Profiling;
+using DuckDB.NET.Data.Profiling.Statistics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,6 +10,16 @@ namespace DuckDB.NET.Data.Extensions
 {
     internal static class ProfilingOptionsExtensions
     {
+        /// <summary>
+        /// The DuckDB 2.0 metric names to track: <c>TrackedMetrics</c>, or <c>DuckDBMetrics.DefaultTrackedMetrics</c> when it is not set.
+        /// </summary>
+        public static IReadOnlyList<string> GetTrackedMetrics(this ProfilingOptions options)
+        {
+            var names = ProfilingTreeReader.ToTrackedNames(options.TrackedMetrics);
+
+            return names.Count > 0 ? names : ProfilingTreeReader.ToTrackedNames(DuckDBMetrics.DefaultTrackedMetrics);
+        }
+
         public static string ToDuckDBProfilingOptionString(this ProfilingOptions options)
         {
             var sb = new StringBuilder();
@@ -21,10 +32,7 @@ namespace DuckDB.NET.Data.Extensions
             if (!string.IsNullOrEmpty(options.OutputPath))
                 sb.AppendLine($"    ,save_location := '{options.OutputPath.Replace("'", "''")}'");
 
-            if (options.EnabledMetrics is { Count: > 0 })
-                sb.AppendLine($"    ,metrics := '{(options.EnabledMetrics).ToDuckDBMetricTypeCollectionString()}'");
-            else
-                sb.AppendLine($"    ,metrics := '{DuckDBMetrics.DefaultMetrics.ToDuckDBMetricTypeCollectionString()}'");
+            sb.AppendLine($"    ,metrics := [{string.Join(", ", options.GetTrackedMetrics().Select(m => $"'{m.Replace("'", "''")}'"))}]");
 
             sb.AppendLine(");");
 

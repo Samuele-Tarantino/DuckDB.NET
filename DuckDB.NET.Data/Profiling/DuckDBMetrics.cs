@@ -1,48 +1,41 @@
-﻿using System.Linq;
-
-namespace DuckDB.NET.Data.Profiling
+﻿namespace DuckDB.NET.Data.Profiling
 {
     public static class DuckDBMetrics
     {
-        public static readonly DuckDBMetricTypeCollection AllMetrics = new DuckDBMetricTypeCollection(Enum.GetValues<DuckDBMetricType>().Cast<DuckDBMetricType>());
-
-        public static readonly DuckDBMetricTypeCollection DefaultMetrics = new DuckDBMetricTypeCollection(
+        /// <summary>The metrics tracked when <see cref="ProfilingOptions.TrackedMetrics"/> is not set.</summary>
+        public static readonly IReadOnlyList<string> DefaultTrackedMetrics =
         [
-            // Basic query metadata
-            DuckDBMetricType.QueryName,
-            DuckDBMetricType.Latency,
-            DuckDBMetricType.CpuTime,
-            DuckDBMetricType.BlockedThreadTime,
+            // Query
+            DuckDBMetricNames.QuerySql,
+            DuckDBMetricNames.QueryTotalTime,
+            DuckDBMetricNames.QueryCpuTime,
+            DuckDBMetricNames.QueryTotalIntermediateRows,
+            DuckDBMetricNames.QueryTotalRowsScanned,
 
-            // Result and cardinality
-            DuckDBMetricType.ResultSetSize,
-            // DuckDBMetricType.RowsReturned, // Not enabled due to known issue
-            DuckDBMetricType.CumulativeCardinality,
-            DuckDBMetricType.CumulativeRowsScanned,
-            DuckDBMetricType.ExtraInfo,
+            // Operators (also used to compute ProfilingInfoMetrics.ResultSetSizeBytes)
+            DuckDBMetricNames.OperatorType,
+            DuckDBMetricNames.OperatorExtraInfo,
+            DuckDBMetricNames.OperatorIntermediateRows,
+            DuckDBMetricNames.OperatorIntermediateSizeBytes,
+            DuckDBMetricNames.OperatorRowsScanned,
+            DuckDBMetricNames.OperatorTiming,
 
-            // Operator-level metrics
-            DuckDBMetricType.OperatorCardinality,
-            DuckDBMetricType.OperatorName,
-            DuckDBMetricType.OperatorRowsScanned,
-            DuckDBMetricType.OperatorTiming,
-            DuckDBMetricType.OperatorType,
+            // System / IO
+            DuckDBMetricNames.SystemBlockedThreadTime,
+            DuckDBMetricNames.SystemTotalMemoryAllocated,
+            DuckDBMetricNames.SystemPeakBufferMemory,
+            DuckDBMetricNames.SystemPeakTempDirSize,
+            DuckDBMetricNames.IoTotalBytesRead,
+            DuckDBMetricNames.IoTotalBytesWritten,
 
-            // Memory / IO / storage metrics
-            DuckDBMetricType.TotalBytesRead,
-            DuckDBMetricType.TotalBytesWritten,
-            DuckDBMetricType.TotalMemoryAllocated,
-            DuckDBMetricType.SystemPeakBufferMemory,
-            DuckDBMetricType.SystemPeakTempDirSize,
-
-            // WAL / attach / checkpoint metrics
-            DuckDBMetricType.AttachLoadStorageLatency,
-            DuckDBMetricType.AttachReplayWalLatency,
-            DuckDBMetricType.CheckpointLatency,
-            DuckDBMetricType.CommitLocalStorageLatency,
-            DuckDBMetricType.WaitingToAttachLatency,
-            DuckDBMetricType.WalReplayEntryCount,
-            DuckDBMetricType.WriteToWalLatency
-        ]);
+            // WAL / attach / checkpoint
+            DuckDBMetricNames.StorageAttachLoadStorageLatency,
+            DuckDBMetricNames.StorageAttachReplayWalLatency,
+            DuckDBMetricNames.StorageCheckpointLatency,
+            DuckDBMetricNames.StorageCommitLocalStorageLatency,
+            DuckDBMetricNames.StorageWaitingToAttachLatency,
+            DuckDBMetricNames.StorageWalReplayEntryCount,
+            DuckDBMetricNames.StorageWriteToWalLatency
+        ];
     }
 }

@@ -256,19 +256,20 @@ namespace DuckDB.NET.Samples
                 Format = DuckDBProfilingFormat.NoOutput,
                 Mode = DuckDBProfilingMode.Detailed,
                 Coverage = DuckDBProfilingCoverage.Select,
-                EnabledMetrics =
+                TrackedMetrics =
                 [
-                    DuckDBMetricType.QueryName,
-                    DuckDBMetricType.Latency,
-                    DuckDBMetricType.CpuTime,
-                    DuckDBMetricType.ResultSetSize,
-                    DuckDBMetricType.CumulativeRowsScanned,
-                    DuckDBMetricType.TotalBytesRead,
-                    DuckDBMetricType.TotalBytesWritten,
-                    DuckDBMetricType.TotalMemoryAllocated,
-                    DuckDBMetricType.SystemPeakBufferMemory,
-                    DuckDBMetricType.SystemPeakTempDirSize,
-                    DuckDBMetricType.WriteToWalLatency,
+                    DuckDBMetricNames.QuerySql,
+                    DuckDBMetricNames.QueryTotalTime,
+                    DuckDBMetricNames.QueryCpuTime,
+                    DuckDBMetricNames.OperatorType,                  // with the next one: ProfilingInfoMetrics.ResultSetSizeBytes
+                    DuckDBMetricNames.OperatorIntermediateSizeBytes,
+                    DuckDBMetricNames.QueryTotalRowsScanned,
+                    DuckDBMetricNames.IoTotalBytesRead,
+                    DuckDBMetricNames.IoTotalBytesWritten,
+                    DuckDBMetricNames.SystemTotalMemoryAllocated,
+                    DuckDBMetricNames.SystemPeakBufferMemory,
+                    DuckDBMetricNames.SystemPeakTempDirSize,
+                    DuckDBMetricNames.StorageWriteToWalLatency,
                 ],
                 MetricsThreshold = 100
             };

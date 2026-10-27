@@ -20,7 +20,6 @@ public enum DuckDBStatementType
     Drop,
     Export,
     Pragma,
-    Show,
     Vacuum,
     Call,
     Set,

@@ -32,6 +32,17 @@ public class DuckDBCommand : DbCommand
     /// </remarks>
     public bool UseStreamingMode { get; set; } = false;
 
+    /// <summary>
+    /// Optional callback invoked for every statement of the command text, after the statement has been prepared and
+    /// before it is executed. Throwing from the callback stops the batch: the statements already executed are not rolled back,
+    /// the current one and the following ones are not executed.
+    /// </summary>
+    /// <remarks>
+    /// Statements are prepared one at a time, right before they run, so a statement can depend on an object created by a previous
+    /// statement of the same batch. Preparing the whole batch up front to inspect it would fail in that case.
+    /// </remarks>
+    public Action<DuckDBStatementType>? StatementValidator { get; set; }
+
     [AllowNull]
     [DefaultValue("")]
     public override string CommandText
@@ -70,7 +81,7 @@ public class DuckDBCommand : DbCommand
     {
         EnsureConnectionOpen();
 
-        var results = PreparedStatement.PreparedStatement.PrepareMultiple(connection!.NativeConnection, CommandText, parameters, UseStreamingMode);
+        var results = PreparedStatement.PreparedStatement.PrepareMultiple(connection!.NativeConnection, CommandText, parameters, UseStreamingMode, StatementValidator);
 
         var count = 0;
 
@@ -106,7 +117,7 @@ public class DuckDBCommand : DbCommand
     {
         EnsureConnectionOpen();
 
-        var results = PreparedStatement.PreparedStatement.PrepareMultiple(connection!.NativeConnection, CommandText, parameters, UseStreamingMode);
+        var results = PreparedStatement.PreparedStatement.PrepareMultiple(connection!.NativeConnection, CommandText, parameters, UseStreamingMode, StatementValidator);
 
         var reader = new DuckDBDataReader(this, results, behavior);
 
@@ -125,7 +136,7 @@ public class DuckDBCommand : DbCommand
     {
         EnsureConnectionOpen();
 
-        var results = PreparedStatement.PreparedStatement.PrepareMultiple(connection!.NativeConnection, CommandText, parameters, UseStreamingMode);
+        var results = PreparedStatement.PreparedStatement.PrepareMultiple(connection!.NativeConnection, CommandText, parameters, UseStreamingMode, StatementValidator);
 
         foreach (var result in results)
         {
@@ -133,7 +144,7 @@ public class DuckDBCommand : DbCommand
 
             if (NativeMethods.Query.DuckDBResultReturnType(current) == DuckDBResultType.QueryResult)
             {
-                return new DuckDBArrowArrayStream(current);
+                return new DuckDBArrowArrayStream(current, connection.NativeConnection);
             }
 
             current.Close();

@@ -87,8 +87,7 @@ namespace Irion.DuckDB.NET.Benchmark
                 {
                     Format = DuckDBProfilingFormat.NoOutput,
                     Mode = ProfilingMode, //DuckDBProfilingMode.Detailed,
-                    Coverage = DuckDBProfilingCoverage.All,
-                    EnabledMetrics = []
+                    Coverage = DuckDBProfilingCoverage.All
                 };
                 connection.EnableProfiling(options);
             }
