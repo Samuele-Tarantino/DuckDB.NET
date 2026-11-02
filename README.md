@@ -70,7 +70,9 @@ private static void PrintQueryResults(DbDataReader queryResult)
 
 ### Irion Package Build
 
-Use this workflow to build and publish Irion packages with bundled native DuckDB runtimes.
+Use this workflow to build and publish Irion packages. The native DuckDB library is **not** downloaded or bundled
+by this repository any more: it comes from the NuGet package `Irion.DuckDb.Native.Bridge` (see
+[Native library (DuckDB with the bridge extension)](#native-library-duckdb-with-the-bridge-extension)).
 The standard flow uses:
 
 - `build/irion.version` as the single source of truth for the package version
@@ -78,16 +80,8 @@ The standard flow uses:
 
 #### 1. Prerequisites
 
-1. Build DuckDB runtimes for `linux-x64` and `win-x64`.
-2. Make sure the runtime archives are available as `win-x64.zip` and `linux-x64.zip`.
-3. Set `DuckDbArtifactRoot` in `DuckDB.NET.Bindings/Bindings.csproj` to the folder/share containing those archives.
-
-`DuckDB.NET.Bindings/Bindings.csproj` expects:
-
-```text
-$(DuckDbArtifactRoot)/win-x64.zip
-$(DuckDbArtifactRoot)/linux-x64.zip
-```
+1. The `Repository` feed in `nuget.config` must be reachable (it hosts `Irion.DuckDb.Native.Bridge`).
+2. The version of the native package is set in `DuckDB.NET.Bindings/Bindings.csproj` (`PackageReference` to `Irion.DuckDb.Native.Bridge`).
 
 #### 2. Version management (recommended)
 
@@ -128,7 +122,7 @@ You can override package IDs if needed:
 #### 3. Build (Full)
 
 ```powershell
-.\scripts\irion-package.ps1 -Command build -p "NativeDownloadRetries=30","NativeDownloadRetryDelayMilliseconds=15000"
+.\scripts\irion-package.ps1 -Command build
 ```
 
 The build command runs a full `dotnet clean` for both Irion projects before building.
@@ -199,10 +193,83 @@ git push origin "refs/tags/v$buildVersion"
 
 Quick checklist before publishing:
 
-1. `DuckDbArtifactRoot` points to the correct runtime artifacts.
+1. `Irion.DuckDb.Native.Bridge` in `Bindings.csproj` points to the intended native package version.
 2. `build/irion.version` contains the final release version.
 3. Both `dotnet pack` commands completed successfully.
 4. Both packages were pushed to the target feed.
+
+### Native library (DuckDB with the bridge extension)
+
+Until 2.0.0.2 the native DuckDB library was downloaded from the official DuckDB release (`DuckDbArtifactRoot`) by the
+`DownloadNativeLibs` target and copied from `DuckDB.NET.Bindings/obj/runtimes`. It is now taken from the NuGet package
+**`Irion.DuckDb.Native.Bridge`**, a custom DuckDB build with the `bridge` extension linked inside the library
+(`bridge_*` C functions and the `bridge_scan` SQL function live in the same `duckdb.dll` / `libduckdb.so`).
+
+Package layout (standard NuGet runtime assets):
+
+```text
+runtimes/win-x64/native/duckdb.dll
+runtimes/linux-x64/native/libduckdb.so
+```
+
+How it is wired:
+
+- `DuckDB.NET.Bindings/Bindings.csproj` has a `PackageReference` to `Irion.DuckDb.Native.Bridge`, **for every `BuildType`**
+  (also `ManagedOnly`): the library with the bridge is always the one used.
+- `Data` references `Bindings`, so the dependency flows to every consumer. The published
+  `Irion.DuckDB.NET.Bindings.Full` nupkg declares the dependency and contains no native file itself; NuGet restores
+  the runtime assets and copies them to `runtimes/<rid>/native/` in the output of the consuming project.
+- Projects in this repo (tests, benchmarks, samples) get the library transitively. The old `CallExecutable` target and
+  the `None` items copying from `obj/runtimes` were removed from `Test.csproj`, `Benchmarks.csproj`,
+  `Irion.DuckDB.NET.Test.csproj` and `Irion.DuckDB.NET.Benchmark.csproj`. `NativeLibraryHelper` /
+  `NativeLibraryLoader` keep loading from `runtimes/<rid>/native`.
+- Removed: `DownloadNativeLibs.targets`, the `DownloadNativeLibs`/`CleanNativeLibs` targets, `DuckDbArtifactRoot`,
+  `NoNativeText`, and the nightly step of `.github/workflows/ci.yml` (it pointed `DuckDbArtifactRoot` to the latest
+  official nightly; it no longer has any effect).
+
+Changing the native library:
+
+1. Publish a new version of `Irion.DuckDb.Native.Bridge` to the `Repository` feed (same layout as above).
+2. Update the `Version` of the `PackageReference` in `Bindings.csproj`.
+3. Run the tests, then pack (see *Irion Package Build*).
+
+To try a local build of the library without publishing a package, add a local folder as a NuGet source and use a
+pre-release version of the package, or copy the library over `runtimes/<rid>/native` in the output folder of a test project.
+
+Caveat: the library is a single copy of DuckDB per process. Handles (`DuckDBNativeConnection`, ...) created by
+DuckDB.NET and passed to the bridge functions are valid because they come from this same library; do not mix them with
+another DuckDB library loaded in the process.
+
+### Bridge C API (`DuckDB.NET.Native.Bridge`)
+
+`DuckDB.NET.Bindings/Bridge/BridgeMethods.cs` exposes the C functions exported by the bridge extension. Each function
+has a raw overload (`Span<byte> error, int errorSize`) and an overload with `out string error` (buffer of 1024 bytes).
+
+| Method | C function |
+|---|---|
+| `RegisterDataSource` / `UnregisterDataSource` | `bridge_register_datasource` / `bridge_unregister_datasource` |
+| `RegisterLink` | `bridge_register_link` |
+| `RegisterLinkMaterialized` | `bridge_register_link_materialized` |
+| `RegisterLinkView` | `bridge_register_link_view` |
+| `UnregisterLink` | `bridge_unregister_link` |
+
+```csharp
+using DuckDB.NET.Native;
+using DuckDB.NET.Native.Bridge;
+
+using var delt = new DuckDBConnection("DataSource=:memory:");          // reads, no credentials
+using var connector = new DuckDBConnection("DataSource=:memory:");     // owns the source (secrets, ATTACH...)
+delt.Open(); connector.Open();
+
+BridgeMethods.RegisterDataSource(delt.NativeConnection, "A", connector.NativeConnection, out var error);
+BridgeMethods.RegisterLink(delt.NativeConnection, "cl_t", "A", "SELECT * FROM t", out error);
+// SELECT * FROM bridge_scan('cl_t') on the delt
+BridgeMethods.UnregisterLink(delt.NativeConnection, "cl_t", out error);
+```
+
+Rules (full details in the bridge `HOST-GUIDE.md`): register DataSource and links before any SQL that uses them;
+Connector and Delt must be different instances; set up the Connector at instance level; close the Delt before the
+Connector; for materialized links unregister the link before closing the transaction connection.
 
 ### Merge a Specific Upstream Tag
 

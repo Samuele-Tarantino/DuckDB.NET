@@ -39,10 +39,6 @@ Behavior changes:
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(BuildType)' == 'ManagedOnly' ">
-    <Description>$(Description) $(NoNativeText)</Description>
-  </PropertyGroup>
-
   <PropertyGroup Condition="'$(CI)' == 'true'">
     <DefineConstants>$(DefineConstants);CI</DefineConstants>
   </PropertyGroup>

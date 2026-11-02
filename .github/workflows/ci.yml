@@ -28,12 +28,6 @@ jobs:
         run: |
           echo "BuildBranch=nightly-builds" >> "$GITHUB_ENV"
 
-      - name: Set Env
-        if: startsWith(github.ref_name, 'nightly') || startsWith(env.BuildBranch, 'nightly')
-        run: |
-          echo "DuckDbArtifactRoot=https://artifacts.duckdb.org/latest" >> "$GITHUB_ENV"
-          echo "NightlyBuild=true" >> "$GITHUB_ENV"
-
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -52,7 +46,7 @@ jobs:
         shell: pwsh
         run: |
           $rid = @{ Linux = 'linux-x64'; Windows = 'win-x64'; macOS = 'osx' }['${{ runner.os }}']
-          $library = Get-ChildItem "DuckDB.NET.Bindings/obj/runtimes/$rid/native/*" -Include *.so, *.dll, *.dylib | Select-Object -First 1
+          $library = Get-ChildItem "DuckDB.NET.Test/bin/Release/net10.0/runtimes/$rid/native/*" -Include *.so, *.dll, *.dylib | Select-Object -First 1
           Add-Type -TypeDefinition @"
           using System;
           using System.Runtime.InteropServices;

@@ -40,7 +40,6 @@
 
   <PropertyGroup>
     <BuildType>ManagedOnly</BuildType>
-    <NoNativeText>This package does not include a copy of the native DuckDB library.</NoNativeText>
   </PropertyGroup>
   <PropertyGroup Condition="'$(BuildType)' == 'Full' ">
     <PackageId>$(PackageId).Full</PackageId>
