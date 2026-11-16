@@ -5,156 +5,195 @@ namespace Irion.DuckDB.NET.Test.Bridge;
 
 /// <summary>
 /// Tests of the bridge C API (<see cref="BridgeMethods"/>) against the native library shipped by the
-/// Irion.DuckDb.Native.Bridge package. Delt and Connector are two separate in-memory instances.
+/// Irion.DuckDb.Native.Bridge package. Delt and instance A are two separate in-memory instances; A is read from
+/// the Delt with <c>ATTACH 'bridge:A'</c>.
 /// </summary>
 public sealed class BridgeMethodsTests : IDisposable
 {
     private readonly DuckDBConnection _delt;
-    private readonly DuckDBConnection _connector;
+    private readonly DuckDBConnection _instance;
 
     public BridgeMethodsTests()
     {
         // A plain in-memory connection string opens a new, independent instance every time.
         _delt = new DuckDBConnection("DataSource=:memory:");
-        _connector = new DuckDBConnection("DataSource=:memory:");
+        _instance = new DuckDBConnection("DataSource=:memory:");
         _delt.Open();
-        _connector.Open();
+        _instance.Open();
 
-        Execute(_connector, "CREATE TABLE t AS SELECT range AS i, 'v' || range AS s FROM range(5)");
-        Execute(_connector, "CREATE VIEW v AS SELECT i FROM t WHERE i >= 3");
+        Execute(_instance, "CREATE TABLE t AS SELECT range AS i, 'v' || range AS s FROM range(5)");
+        Execute(_instance, "CREATE VIEW v AS SELECT i FROM t WHERE i >= 3");
     }
 
-    // The Delt must be closed before the Connector.
+    // Deregister first, then close the Delt, then the instance.
     public void Dispose()
     {
+        foreach (var name in new[] { "A", "isoldata", "Fonte_è" })
+        {
+            BridgeMethods.UnregisterInstance(_delt.NativeConnection, name, out _);
+            BridgeMethods.UnregisterInstance(_instance.NativeConnection, name, out _);
+        }
+
         _delt.Dispose();
-        _connector.Dispose();
+        _instance.Dispose();
     }
 
     [Fact]
-    public void RegisterDataSource_is_listed_by_bridge_datasources()
-    {
-        Register("A").Should().Be(DuckDBState.Success);
-
-        Scalar(_delt, "SELECT count(*) FROM bridge_datasources()").Should().Be(1L);
-    }
-
-    [Fact]
-    public void RegisterLink_can_be_read_with_bridge_scan()
+    public void RegisterInstance_is_listed_by_bridge_instances()
     {
         Register("A");
 
-        BridgeMethods.RegisterLink(_delt.NativeConnection, "cl_t", "A", "SELECT i, s FROM t ORDER BY i", out var error)
-            .Should().Be(DuckDBState.Success, error);
-
-        Scalar(_delt, "SELECT count(*) FROM bridge_scan('cl_t')").Should().Be(5L);
-        Scalar(_delt, "SELECT sum(i)::BIGINT FROM bridge_scan('cl_t')").Should().Be(10L);
+        Scalar(_delt, "SELECT count(*) FROM bridge_instances()").Should().Be(1L);
     }
 
     [Fact]
-    public void RegisterLink_with_filter_returns_only_matching_rows()
+    public void Attach_reads_a_table_of_the_instance()
     {
         Register("A");
-        BridgeMethods.RegisterLink(_delt.NativeConnection, "cl_t", "A", "SELECT i, s FROM t", out _);
+        Execute(_delt, "ATTACH 'bridge:A' AS dba");
 
-        Scalar(_delt, "SELECT count(*) FROM bridge_scan('cl_t') WHERE i > 1 AND s <> 'v4'").Should().Be(2L);
+        Scalar(_delt, "SELECT count(*) FROM dba.t").Should().Be(5L);
+        Scalar(_delt, "SELECT sum(i)::BIGINT FROM dba.t").Should().Be(10L);
     }
 
     [Fact]
-    public void RegisterLinkView_reads_a_view_of_the_connector()
+    public void Attach_with_filter_and_projection_returns_the_expected_rows()
+    {
+        Register("A");
+        Execute(_delt, "ATTACH 'bridge:A' AS dba");
+
+        Scalar(_delt, "SELECT count(*) FROM dba.t WHERE i > 1 AND s <> 'v4'").Should().Be(2L);
+        Scalar(_delt, "SELECT s FROM dba.t WHERE i = 3").Should().Be("v3");
+    }
+
+    [Fact]
+    public void Attach_reads_a_view_of_the_instance()
+    {
+        Register("A");
+        Execute(_delt, "ATTACH 'bridge:A' AS dba");
+
+        Scalar(_delt, "SELECT count(*) FROM dba.v").Should().Be(2L);
+    }
+
+    [Fact]
+    public void Attach_can_be_joined_with_a_local_table_of_the_delt()
+    {
+        Register("A");
+        Execute(_delt, "ATTACH 'bridge:A' AS dba");
+        Execute(_delt, "CREATE TABLE local_t AS SELECT range AS i FROM range(3)");
+
+        Scalar(_delt, "SELECT count(*) FROM dba.t a JOIN local_t l ON a.i = l.i").Should().Be(3L);
+    }
+
+    [Fact]
+    public void Attach_read_only_rejects_writes()
+    {
+        Register("A");
+        Execute(_delt, "ATTACH 'bridge:A' AS dba (READ_ONLY)");
+
+        var act = () => Execute(_delt, "INSERT INTO dba.t VALUES (99, 'x')");
+
+        act.Should().Throw<DuckDBException>();
+        Scalar(_instance, "SELECT count(*) FROM t").Should().Be(5L);
+    }
+
+    [Fact]
+    public void Attach_of_an_unregistered_instance_fails_with_bridge_message()
+    {
+        var act = () => Execute(_delt, "ATTACH 'bridge:missing' AS dbx");
+
+        act.Should().Throw<DuckDBException>().Which.Message.Should().Contain("bridge:").And.Contain("missing");
+    }
+
+    [Fact]
+    public void RegisterInstance_twice_is_rejected_case_insensitively()
     {
         Register("A");
 
-        BridgeMethods.RegisterLinkView(_delt.NativeConnection, "cl_v", "A", "v", out var error)
-            .Should().Be(DuckDBState.Success, error);
-
-        Scalar(_delt, "SELECT count(*) FROM bridge_scan('cl_v')").Should().Be(2L);
-    }
-
-    [Fact]
-    public void RegisterLinkMaterialized_reads_on_the_host_transaction_connection()
-    {
-        Register("A");
-        using var tx = _connector.Duplicate();
-        tx.Open();
-        Execute(tx, "BEGIN");
-        Execute(tx, "CREATE TEMP TABLE tmp AS SELECT 42 AS x");
-
-        BridgeMethods.RegisterLinkMaterialized(_delt.NativeConnection, "cl_m", "A", tx.NativeConnection, "SELECT x FROM tmp", out var error)
-            .Should().Be(DuckDBState.Success, error);
-
-        Scalar(_delt, "SELECT x FROM bridge_scan('cl_m')").Should().Be(42);
-
-        // The link must be gone before the transaction connection is closed.
-        BridgeMethods.UnregisterLink(_delt.NativeConnection, "cl_m", out _).Should().Be(DuckDBState.Success);
-        Execute(tx, "ROLLBACK");
-    }
-
-    [Fact]
-    public void RegisterLink_on_unknown_datasource_fails_with_bridge_message()
-    {
-        BridgeMethods.RegisterLink(_delt.NativeConnection, "cl_x", "missing", "SELECT 1", out var error)
-            .Should().Be(DuckDBState.Error);
-
-        error.Should().Contain("bridge:").And.Contain("missing");
-    }
-
-    [Fact]
-    public void RegisterLink_twice_is_rejected_case_insensitively()
-    {
-        Register("A");
-        BridgeMethods.RegisterLink(_delt.NativeConnection, "cl_t", "A", "SELECT 1 AS x", out _).Should().Be(DuckDBState.Success);
-
-        BridgeMethods.RegisterLink(_delt.NativeConnection, "CL_T", "A", "SELECT 2 AS x", out var error)
+        BridgeMethods.RegisterInstance(_delt.NativeConnection, "a", _instance.NativeConnection, out var error)
             .Should().Be(DuckDBState.Error);
 
         error.Should().Contain("bridge:");
     }
 
     [Fact]
-    public void RegisterLink_with_invalid_sql_fails_and_registers_nothing()
+    public void RegisterInstance_with_the_same_instance_as_the_delt_is_rejected()
+    {
+        BridgeMethods.RegisterInstance(_delt.NativeConnection, "self", _delt.NativeConnection, out var error)
+            .Should().Be(DuckDBState.Error);
+
+        error.Should().Contain("bridge:");
+    }
+
+    [Fact]
+    public void UnregisterInstance_removes_it_from_bridge_instances()
     {
         Register("A");
 
-        BridgeMethods.RegisterLink(_delt.NativeConnection, "cl_bad", "A", "SELECT * FROM no_such_table", out var error)
-            .Should().Be(DuckDBState.Error);
-        error.Should().Contain("bridge:");
+        BridgeMethods.UnregisterInstance(_delt.NativeConnection, "A", out var error)
+            .Should().Be(DuckDBState.Success, error);
 
-        var act = () => Scalar(_delt, "SELECT count(*) FROM bridge_scan('cl_bad')");
+        Scalar(_delt, "SELECT count(*) FROM bridge_instances()").Should().Be(0L);
+    }
+
+    [Fact]
+    public void UnregisterInstance_makes_attached_catalogs_unreadable()
+    {
+        Register("A");
+        Execute(_delt, "ATTACH 'bridge:A' AS dba");
+        Scalar(_delt, "SELECT count(*) FROM dba.t").Should().Be(5L);
+
+        BridgeMethods.UnregisterInstance(_delt.NativeConnection, "A", out var error)
+            .Should().Be(DuckDBState.Success, error);
+
+        var act = () => Scalar(_delt, "SELECT count(*) FROM dba.t");
         act.Should().Throw<DuckDBException>();
     }
 
     [Fact]
-    public void RegisterDataSource_with_the_same_instance_is_rejected()
+    public void UnregisterInstance_of_an_unknown_name_fails()
     {
-        BridgeMethods.RegisterDataSource(_delt.NativeConnection, "self", _delt.NativeConnection, out var error)
+        BridgeMethods.UnregisterInstance(_delt.NativeConnection, "missing", out var error)
             .Should().Be(DuckDBState.Error);
 
         error.Should().Contain("bridge:");
     }
 
     [Fact]
-    public void UnregisterLink_makes_the_link_unreadable()
+    public void Connect_batch_runs_on_the_instance_session_with_duckdb_query()
     {
         Register("A");
-        BridgeMethods.RegisterLink(_delt.NativeConnection, "cl_t", "A", "SELECT i FROM t", out _);
+        Execute(_delt, "ATTACH 'bridge:A' AS dba");
 
-        BridgeMethods.UnregisterLink(_delt.NativeConnection, "cl_t", out var error)
-            .Should().Be(DuckDBState.Success, error);
+        // Between CONNECT and DISCONNECT every statement goes to the session of the instance and must use
+        // duckdb_query (not prepare): DuckDBCommand cannot be used there.
+        RawQuery(_delt, "CONNECT dba");
+        RawQuery(_delt, "BEGIN");
+        RawQuery(_delt, "CREATE TEMP TABLE tmp AS SELECT 42 AS x");
+        RawQuery(_delt, "DISCONNECT");
 
-        var act = () => Scalar(_delt, "SELECT count(*) FROM bridge_scan('cl_t')");
-        act.Should().Throw<DuckDBException>();
+        // The session (and its TEMP table) outlives DISCONNECT and is visible to reads of the same connection.
+        Scalar(_delt, "SELECT x FROM dba.tmp").Should().Be(42);
+
+        RawQuery(_delt, "CONNECT dba");
+        RawQuery(_delt, "ROLLBACK");
+        RawQuery(_delt, "DISCONNECT");
     }
 
     [Fact]
-    public void UnregisterDataSource_removes_it_from_bridge_datasources()
+    public void Instance_can_write_to_the_delt_when_the_delt_is_registered_on_it()
     {
         Register("A");
-
-        BridgeMethods.UnregisterDataSource(_delt.NativeConnection, "A", out var error)
+        BridgeMethods.RegisterInstance(_instance.NativeConnection, "isoldata", _delt.NativeConnection, out var error)
             .Should().Be(DuckDBState.Success, error);
 
-        Scalar(_delt, "SELECT count(*) FROM bridge_datasources()").Should().Be(0L);
+        // Run on the connection of A, without CONNECT: the bridge writes the rows into the Delt.
+        Execute(_instance, "ATTACH 'bridge:isoldata' AS isoldata");
+        Execute(_instance, "CREATE TABLE isoldata.main.out AS SELECT i, s FROM t");
+        Execute(_instance, "INSERT INTO isoldata.main.out SELECT i + 100, s FROM t");
+
+        Scalar(_delt, "SELECT count(*) FROM main.out").Should().Be(10L);
+        Scalar(_delt, "SELECT max(i) FROM main.out").Should().Be(104L);
     }
 
     [Fact]
@@ -162,7 +201,7 @@ public sealed class BridgeMethodsTests : IDisposable
     {
         Span<byte> buffer = stackalloc byte[256];
 
-        var state = BridgeMethods.RegisterLink(_delt.NativeConnection, "cl_x", "missing", "SELECT 1", buffer, buffer.Length);
+        var state = BridgeMethods.UnregisterInstance(_delt.NativeConnection, "missing", buffer, buffer.Length);
 
         state.Should().Be(DuckDBState.Error);
         BridgeMethods.DecodeError(buffer).Should().StartWith("Invalid Input Error: bridge:");
@@ -173,7 +212,7 @@ public sealed class BridgeMethodsTests : IDisposable
     {
         Span<byte> buffer = stackalloc byte[16];
 
-        BridgeMethods.RegisterLink(_delt.NativeConnection, "cl_x", "missing", "SELECT 1", buffer, buffer.Length);
+        BridgeMethods.UnregisterInstance(_delt.NativeConnection, "missing", buffer, buffer.Length);
 
         buffer.IndexOf((byte)0).Should().BeInRange(1, 15);
     }
@@ -187,21 +226,18 @@ public sealed class BridgeMethodsTests : IDisposable
     }
 
     [Fact]
-    public void Names_and_values_are_passed_as_utf8()
+    public void Instance_names_are_passed_as_utf8()
     {
         Register("Fonte_è");
+        Execute(_delt, "ATTACH 'bridge:Fonte_è' AS dba_utf8");
 
-        BridgeMethods.RegisterLink(_delt.NativeConnection, "cl_è", "Fonte_è", "SELECT 'ü' AS c", out var error)
-            .Should().Be(DuckDBState.Success, error);
-
-        Scalar(_delt, "SELECT c FROM bridge_scan('cl_è')").Should().Be("ü");
+        Scalar(_delt, "SELECT count(*) FROM dba_utf8.t").Should().Be(5L);
     }
 
-    private DuckDBState Register(string name)
+    private void Register(string name)
     {
-        var state = BridgeMethods.RegisterDataSource(_delt.NativeConnection, name, _connector.NativeConnection, out var error);
-        state.Should().Be(DuckDBState.Success, error);
-        return state;
+        BridgeMethods.RegisterInstance(_delt.NativeConnection, name, _instance.NativeConnection, out var error)
+            .Should().Be(DuckDBState.Success, error);
     }
 
     private static void Execute(DuckDBConnection connection, string sql)
@@ -216,5 +252,19 @@ public sealed class BridgeMethodsTests : IDisposable
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         return command.ExecuteScalar();
+    }
+
+    // duckdb_query on the native connection (the only way to run statements between CONNECT and DISCONNECT).
+    private static void RawQuery(DuckDBConnection connection, string sql)
+    {
+        var state = NativeMethods.Query.DuckDBQuery(connection.NativeConnection, sql, out var result);
+        try
+        {
+            state.Should().Be(DuckDBState.Success, NativeMethods.Query.DuckDBResultError(ref result));
+        }
+        finally
+        {
+            NativeMethods.Query.DuckDBDestroyResult(ref result);
+        }
     }
 }

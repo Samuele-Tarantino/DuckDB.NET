@@ -203,7 +203,7 @@ Quick checklist before publishing:
 Until 2.0.0.2 the native DuckDB library was downloaded from the official DuckDB release (`DuckDbArtifactRoot`) by the
 `DownloadNativeLibs` target and copied from `DuckDB.NET.Bindings/obj/runtimes`. It is now taken from the NuGet package
 **`Irion.DuckDb.Native.Bridge`**, a custom DuckDB build with the `bridge` extension linked inside the library
-(`bridge_*` C functions and the `bridge_scan` SQL function live in the same `duckdb.dll` / `libduckdb.so`).
+(the `bridge_*` C functions and the SQL objects of the bridge live in the same `duckdb.dll` / `libduckdb.so`).
 
 Package layout (standard NuGet runtime assets):
 
@@ -247,29 +247,51 @@ has a raw overload (`Span<byte> error, int errorSize`) and an overload with `out
 
 | Method | C function |
 |---|---|
-| `RegisterDataSource` / `UnregisterDataSource` | `bridge_register_datasource` / `bridge_unregister_datasource` |
-| `RegisterLink` | `bridge_register_link` |
-| `RegisterLinkMaterialized` | `bridge_register_link_materialized` |
-| `RegisterLinkView` | `bridge_register_link_view` |
-| `UnregisterLink` | `bridge_unregister_link` |
+| `RegisterInstance` | `bridge_register_instance` |
+| `UnregisterInstance` | `bridge_unregister_instance` |
+
+Since `Irion.DuckDb.Native.Bridge` 2.0.0-alpha7 (bridge features 12-13) the C API is just these two functions. Links,
+materialized/unmaterialized links and the transaction connection (`con_tx`) are gone, together with
+`bridge_register_datasource`, `bridge_register_link*` and `bridge_unregister_link`. Reading is done in SQL:
 
 ```csharp
 using DuckDB.NET.Native;
 using DuckDB.NET.Native.Bridge;
 
 using var delt = new DuckDBConnection("DataSource=:memory:");          // reads, no credentials
-using var connector = new DuckDBConnection("DataSource=:memory:");     // owns the source (secrets, ATTACH...)
-delt.Open(); connector.Open();
+using var instance = new DuckDBConnection("DataSource=:memory:");      // owns the source (secrets, ATTACH...)
+delt.Open(); instance.Open();
 
-BridgeMethods.RegisterDataSource(delt.NativeConnection, "A", connector.NativeConnection, out var error);
-BridgeMethods.RegisterLink(delt.NativeConnection, "cl_t", "A", "SELECT * FROM t", out error);
-// SELECT * FROM bridge_scan('cl_t') on the delt
-BridgeMethods.UnregisterLink(delt.NativeConnection, "cl_t", out error);
+BridgeMethods.RegisterInstance(delt.NativeConnection, "A", instance.NativeConnection, out var error);
+
+// on any connection of the Delt (use DuckDBCommand for these)
+//   ATTACH 'bridge:A' AS dba;                        -- add (READ_ONLY) to forbid writes
+//   SELECT ... FROM dba.orders o JOIN local l ON ...;
+//   CREATE TABLE isoldata.x AS SELECT * FROM dba.orders WHERE ...;
+//   DETACH dba;
+BridgeMethods.UnregisterInstance(delt.NativeConnection, "A", out error);
 ```
 
-Rules (full details in the bridge `HOST-GUIDE.md`): register DataSource and links before any SQL that uses them;
-Connector and Delt must be different instances; set up the Connector at instance level; close the Delt before the
-Connector; for materialized links unregister the link before closing the transaction connection.
+Also available in SQL on the Delt: `bridge_instances()`, `bridge_remote('<alias>', '<SELECT>')`,
+`bridge_explain_analyze(sql [, format])`; settings `bridge_enable_filter_pushdown`, `bridge_enable_projection_pushdown`
+and `bridge_batch_queue_max_bytes` (set with `SET` after opening, never with `duckdb_set_config`).
+
+Rules (full details in the bridge `HOST-GUIDE.md`):
+
+- Register the instance before the `ATTACH`; the instance must be a different DuckDB instance from the Delt and its
+  setup (secrets, extensions, ATTACHes) is done at instance level.
+- There is no per-connection grant: anyone who can open a connection on the Delt can use every registered instance.
+  Use `ATTACH ... (READ_ONLY)` and control upstream who gets a connection.
+- **Batch** (`CONNECT <alias>` ... `DISCONNECT`, one Delt connection for the whole batch): between `CONNECT` and
+  `DISCONNECT` every statement runs on the session of the instance and must be sent with `duckdb_query`
+  (`NativeMethods.Query.DuckDBQuery`). `DuckDBCommand` prepares the statement and **cannot be used there** (engine
+  limit, duckdb/duckdb#27269, expected fixed in DuckDB 2.0.1); outside the batch `DuckDBCommand` is fine.
+- **Writing from the instance**: register the Delt on the instance (`RegisterInstance(instanceConnection, "isoldata",
+  deltConnection)`), then on the instance `ATTACH 'bridge:isoldata' AS isoldata` (without `READ_ONLY`) and run
+  `CREATE TABLE isoldata.main.t AS SELECT ... FROM <objects of the instance>` or `INSERT INTO isoldata.main.t ...`
+  on the instance connection, without `CONNECT`.
+- Shutdown: `DETACH` and unregister, then close the Delt, then the instance.
+- Push delivery (`BRIDGE_PUSH`) no longer exists.
 
 ### Merge a Specific Upstream Tag
 
