@@ -1,0 +1,17 @@
+<!-- Da incollare nel CLAUDE.md del progetto .NET che usa DuckDB.NET (Irion) con l'estensione bridge.
+     Tenere il blocco corto: i dettagli stanno in DUCKDB-NET-BRIDGE-GUIDE.md (e nella guida del pacchetto nativo). -->
+
+## DuckDB.NET (Irion) con l'estensione `bridge`
+
+Questo progetto usa `Irion.DuckDB.NET.Data.Full` / `Irion.DuckDB.NET.Bindings.Full`. La libreria nativa **non è quella ufficiale**: è `Irion.DuckDb.Native.Bridge` (DuckDB 2.0 con l'estensione `bridge` dentro `duckdb.dll` / `libduckdb.so`), arrivata come dipendenza transitiva in `runtimes/<rid>/native/`. Niente `LOAD`, niente scarico di dll.
+
+**Prima di scrivere o modificare codice che usa il bridge, leggere** `docs/DUCKDB-NET-BRIDGE-GUIDE.md` del pacchetto `Irion.DuckDB.NET.Bindings.Full` (`~/.nuget/packages/irion.duckdb.net.bindings.full/<versione>/docs/`) e la guida del pacchetto nativo (`~/.nuget/packages/irion.duckdb.native.bridge/<versione>/docs/HOST-GUIDE.md`). Esempio eseguibile: `docs/examples/BridgeQuickStart/Program.cs`. Usare le guide della **versione referenziata**.
+
+- **C API in C#:** `DuckDB.NET.Native.Bridge.BridgeMethods`: `RegisterInstance`, `UnregisterInstance`, `WriteStats` (overload raw con `Span<byte> error` o con `out string error`). Handle: `DuckDBConnection.NativeConnection`. Non esistono più `RegisterDataSource`, `RegisterLink*`, `UnregisterLink` (link e `con_tx` tolti dalla libreria nativa).
+- **Delt** = `DuckDBConnection` senza credenziali che legge; **istanza** = altra `DuckDBConnection` (`DataSource=:memory:` apre ogni volta un'istanza nuova) con i secret di una fonte, preparata solo a livello di istanza (mai `CREATE SECRET ... IN connection`).
+- **Ordine:** `RegisterInstance(delt, "A", istanza)` → `ATTACH 'bridge:A' AS dba [(READ_ONLY)]` → `SELECT ... FROM dba.<oggetto>` → `DETACH` e `UnregisterInstance` → chiudere prima la Delt, poi l'istanza. `READ_ONLY` rifiuta anche `CREATE TEMP TABLE` e il batch.
+- **Batch `CONNECT dba` ... `DISCONNECT`:** fra i due **non usare `DuckDBCommand`** (fa la prepare e DuckDB 2.0.0 dà `PREPARE succeeded but the prepared statement was not registered`): usare `NativeMethods.Query.DuckDBQuery(connection.NativeConnection, sql, out var result)`, una SQL alla volta, con `DuckDBDestroyResult` sempre. Una sola connessione della Delt per tutto il batch. Un errore invalida la transazione: `ROLLBACK` sotto `CONNECT`; un `COMMIT` dopo un errore non conferma nulla.
+- **Scrittura da A nell'Isoldata:** registrare la Delt su A (`RegisterInstance(istanza, "isoldata", delt)`), `ATTACH 'bridge:isoldata' AS isoldata` su A **senza `READ_ONLY`**, poi `CREATE TABLE isoldata.main.t AS ...` / `INSERT INTO isoldata.main.t SELECT ...` sulla connessione di A **senza `CONNECT`**. Metriche: `BridgeMethods.WriteStats(connessioneA, out var stats, out var errore)` **subito dopo** lo statement, sulla stessa connessione di A (ogni statement successivo le azzera; non sono cumulative; `Bytes` non è la dimensione su disco; una scrittura spinta intera alla Delt dà `Outcome = None`). Il `ROLLBACK` del designer su A non annulla l'output.
+- **Sicurezza:** nessuna abilitazione per connessione: chi apre una connessione sulla Delt usa tutte le istanze registrate. Separare a monte e usare `READ_ONLY`.
+- **Una libreria sola per processo:** non passare handle fra questa dll e un altro DuckDB. Impostazioni `bridge_*` con `SET` dopo l'apertura, mai con `duckdb_set_config`.
+- Il push (`BRIDGE_PUSH`) non esiste più. Testi e commenti in italiano; termini tecnici (scan, stream, handle, ...) in originale.

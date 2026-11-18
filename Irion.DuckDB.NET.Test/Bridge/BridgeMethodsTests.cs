@@ -197,6 +197,79 @@ public sealed class BridgeMethodsTests : IDisposable
     }
 
     [Fact]
+    public void WriteStats_reports_rows_bytes_and_outcome_of_the_last_write_from_the_instance()
+    {
+        Register("A");
+        BridgeMethods.RegisterInstance(_instance.NativeConnection, "isoldata", _delt.NativeConnection, out _);
+        Execute(_instance, "ATTACH 'bridge:isoldata' AS isoldata");
+
+        Execute(_instance, "CREATE TABLE isoldata.main.out AS SELECT i, s FROM t");
+
+        BridgeMethods.WriteStats(_instance.NativeConnection, out var stats, out var error)
+            .Should().Be(DuckDBState.Success, error);
+        stats.Outcome.Should().Be(BridgeWriteOutcome.Committed);
+        stats.Rows.Should().Be(5);
+        stats.Bytes.Should().BeGreaterThan(0);
+        stats.DurationMs.Should().BeGreaterThanOrEqualTo(0);
+    }
+
+    [Fact]
+    public void WriteStats_is_reset_by_the_next_statement_on_the_connection()
+    {
+        Register("A");
+        BridgeMethods.RegisterInstance(_instance.NativeConnection, "isoldata", _delt.NativeConnection, out _);
+        Execute(_instance, "ATTACH 'bridge:isoldata' AS isoldata");
+        Execute(_instance, "CREATE TABLE isoldata.main.out AS SELECT i, s FROM t");
+
+        Scalar(_instance, "SELECT 1");
+
+        BridgeMethods.WriteStats(_instance.NativeConnection, out var stats, out _).Should().Be(DuckDBState.Success);
+        stats.Outcome.Should().Be(BridgeWriteOutcome.None);
+        stats.Rows.Should().Be(0);
+    }
+
+    [Fact]
+    public void WriteStats_is_not_cumulative_between_writes()
+    {
+        Register("A");
+        BridgeMethods.RegisterInstance(_instance.NativeConnection, "isoldata", _delt.NativeConnection, out _);
+        Execute(_instance, "ATTACH 'bridge:isoldata' AS isoldata");
+        Execute(_instance, "CREATE TABLE isoldata.main.out AS SELECT i, s FROM t");
+
+        Execute(_instance, "INSERT INTO isoldata.main.out SELECT i + 100, s FROM t WHERE i < 2");
+
+        BridgeMethods.WriteStats(_instance.NativeConnection, out var stats, out _);
+        stats.Outcome.Should().Be(BridgeWriteOutcome.Committed);
+        stats.Rows.Should().Be(2);
+    }
+
+    [Fact]
+    public void WriteStats_without_any_write_reports_no_outcome()
+    {
+        BridgeMethods.WriteStats(_instance.NativeConnection, out var stats, out var error)
+            .Should().Be(DuckDBState.Success, error);
+
+        stats.Outcome.Should().Be(BridgeWriteOutcome.None);
+    }
+
+    [Fact]
+    public void WriteStats_raw_overload_returns_the_same_values()
+    {
+        Register("A");
+        BridgeMethods.RegisterInstance(_instance.NativeConnection, "isoldata", _delt.NativeConnection, out _);
+        Execute(_instance, "ATTACH 'bridge:isoldata' AS isoldata");
+        Execute(_instance, "CREATE TABLE isoldata.main.out AS SELECT i, s FROM t");
+        Span<byte> buffer = stackalloc byte[256];
+
+        var state = BridgeMethods.WriteStats(_instance.NativeConnection, out var rows, out var bytes, out _, out var outcome, buffer, buffer.Length);
+
+        state.Should().Be(DuckDBState.Success);
+        rows.Should().Be(5);
+        bytes.Should().BeGreaterThan(0);
+        outcome.Should().Be((int)BridgeWriteOutcome.Committed);
+    }
+
+    [Fact]
     public void Raw_overload_fills_the_caller_buffer_with_a_terminated_message()
     {
         Span<byte> buffer = stackalloc byte[256];

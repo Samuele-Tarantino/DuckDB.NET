@@ -249,8 +249,9 @@ has a raw overload (`Span<byte> error, int errorSize`) and an overload with `out
 |---|---|
 | `RegisterInstance` | `bridge_register_instance` |
 | `UnregisterInstance` | `bridge_unregister_instance` |
+| `WriteStats` | `bridge_write_stats` (since 2.0.0-alpha10) |
 
-Since `Irion.DuckDb.Native.Bridge` 2.0.0-alpha7 (bridge features 12-13) the C API is just these two functions. Links,
+Since `Irion.DuckDb.Native.Bridge` 2.0.0-alpha7 (bridge features 12-13) the registration API is just these two functions. Links,
 materialized/unmaterialized links and the transaction connection (`con_tx`) are gone, together with
 `bridge_register_datasource`, `bridge_register_link*` and `bridge_unregister_link`. Reading is done in SQL:
 
@@ -291,7 +292,26 @@ Rules (full details in the bridge `HOST-GUIDE.md`):
   `CREATE TABLE isoldata.main.t AS SELECT ... FROM <objects of the instance>` or `INSERT INTO isoldata.main.t ...`
   on the instance connection, without `CONNECT`.
 - Shutdown: `DETACH` and unregister, then close the Delt, then the instance.
+- **Write metrics**: right after a write from the instance (even a failed one) call
+  `BridgeMethods.WriteStats(instanceConnection, out var stats, out var error)` on the **same instance connection** that
+  ran the statement: `stats.Rows`, `stats.Bytes` (uncompressed bytes copied by the sink, not the size on disk),
+  `stats.DurationMs` and `stats.Outcome` (`Committed`, `RolledBack`, `None`). Every statement started on the connection
+  resets the numbers, so read them before running anything else (also `ROLLBACK` or a `SELECT`); they are not
+  cumulative. A CTAS/INSERT pushed whole to the Delt (constant or Isoldata-only source) does not go through the sink
+  and reports `None`.
 - Push delivery (`BRIDGE_PUSH`) no longer exists.
+
+The `Irion.DuckDB.NET.Bindings.Full` package ships its own documentation in `docs/` (source in the `docs/` folder of this
+repo, Italian like the bridge docs): `DUCKDB-NET-BRIDGE-GUIDE.md` (how to use the bridge from DuckDB.NET),
+`duckdb-net-claude-snippet.md` (block to paste in the `CLAUDE.md` of a host project) and
+`examples/BridgeQuickStart/Program.cs` (runnable example, text only: it is not compiled in the package). After a restore
+they are in `~/.nuget/packages/irion.duckdb.net.bindings.full/<version>/docs/`. Update them in the same change that
+modifies `BridgeMethods` or the way the native library is referenced.
+
+The native package ships the bridge documentation: `docs/HOST-GUIDE.md` (the reference for hosts), `docs/host-claude-snippet.md`,
+`docs/src/include/bridge_capi.hpp` and the .NET examples under `docs/examples/`, in
+`~/.nuget/packages/irion.duckdb.native.bridge/<version>/docs/`. They describe the version of the package: use the
+ones of the version referenced in `Bindings.csproj`.
 
 ### Merge a Specific Upstream Tag
 

@@ -18,7 +18,12 @@ New features:
 
 	<!-- Native DuckDB library with the bridge extension: always taken from this package (runtimes/<rid>/native) -->
 	<ItemGroup>
-		<PackageReference Include="Irion.DuckDb.Native.Bridge" Version="2.0.0-alpha7" />
+		<PackageReference Include="Irion.DuckDb.Native.Bridge" Version="2.0.0-alpha10" />
+	</ItemGroup>
+	<!-- Documentation shipped inside the package (docs/): guide, CLAUDE.md snippet and examples (text only, not compiled) -->
+	<ItemGroup>
+		<None Include="..\docs\*.md" Pack="true" PackagePath="docs\" Visible="false" />
+		<None Include="..\docs\examples\BridgeQuickStart\Program.cs" Pack="true" PackagePath="docs\examples\BridgeQuickStart\" Visible="false" />
 	</ItemGroup>
 	<ItemGroup Condition="'$(CI)' == 'true'">
 		<PackageReference Include="GitVersion.MsBuild" Version="6.4.0" PrivateAssets="all" />
