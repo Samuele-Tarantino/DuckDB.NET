@@ -68,6 +68,18 @@ private static void PrintQueryResults(DbDataReader queryResult)
 }
 ```
 
+## DuckDB native runtime
+
+The full packages download and bundle the DuckDB 2.0.1 native libraries from the official release. The build includes Windows (`win-x64`, `win-arm64`), Linux (`linux-x64`, `linux-arm64`), and macOS (`osx`) runtimes. To use a different release or a mirror, set `DuckDbArtifactRoot` to the directory that contains the matching `duckdb-shared-libs-*.tar.gz` files.
+
+## Tests
+
+Run the library test suite from the repository root:
+
+```powershell
+dotnet test .\DuckDB.NET.Test\Test.csproj /p:BuildType=Full
+```
+
 ### Irion Package Build
 
 Use this workflow to build and publish Irion packages with bundled native DuckDB runtimes.
@@ -78,15 +90,17 @@ The standard flow uses:
 
 #### 1. Prerequisites
 
-1. Build DuckDB runtimes for `linux-x64` and `win-x64`.
-2. Make sure the runtime archives are available as `win-x64.zip` and `linux-x64.zip`.
-3. Set `DuckDbArtifactRoot` in `DuckDB.NET.Bindings/Bindings.csproj` to the folder/share containing those archives.
+1. Use the DuckDB 2.0.1 runtime archives from the official release, or provide a mirror with the same archive names.
+2. Set `DuckDbArtifactRoot` in `DuckDB.NET.Bindings/Bindings.csproj` to the release or mirror directory when overriding the default.
 
 `DuckDB.NET.Bindings/Bindings.csproj` expects:
 
 ```text
-$(DuckDbArtifactRoot)/win-x64.zip
-$(DuckDbArtifactRoot)/linux-x64.zip
+$(DuckDbArtifactRoot)/duckdb-shared-libs-windows-amd64.tar.gz
+$(DuckDbArtifactRoot)/duckdb-shared-libs-windows-arm64.tar.gz
+$(DuckDbArtifactRoot)/duckdb-shared-libs-linux-amd64.tar.gz
+$(DuckDbArtifactRoot)/duckdb-shared-libs-linux-arm64.tar.gz
+$(DuckDbArtifactRoot)/duckdb-shared-libs-osx-universal.tar.gz
 ```
 
 #### 2. Version management (recommended)
