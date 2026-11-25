@@ -347,7 +347,8 @@ function Invoke-Clean {
         "clean",
         $projects.Bindings,
         "-c", $Configuration,
-        "/p:BuildType=Full"
+        "/p:BuildType=Full",
+        "/m:1"
     )
     if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotes)) {
         $bindingsArgs += "/p:PackageReleaseNotes=$PackageReleaseNotes"
@@ -367,7 +368,9 @@ function Invoke-Clean {
         "clean",
         $projects.Data,
         "-c", $Configuration,
-        "/p:BuildType=Full"
+        "/p:BuildType=Full",
+        "/p:BuildProjectReferences=false",
+        "/m:1"
     )
     if (-not [string]::IsNullOrWhiteSpace($PackageReleaseNotes)) {
         $dataArgs += "/p:PackageReleaseNotes=$PackageReleaseNotes"

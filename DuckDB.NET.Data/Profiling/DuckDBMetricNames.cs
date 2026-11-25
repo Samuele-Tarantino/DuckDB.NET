@@ -30,6 +30,10 @@ public static class DuckDBMetricNames
     public const string IoAll = "io.*";
     public const string IoTotalBytesRead = "io.total_bytes_read";
     public const string IoTotalBytesWritten = "io.total_bytes_written";
+    public const string IoTotalReadOperations = "io.total_read_operations";
+    public const string IoTotalReadTime = "io.total_read_time";
+    public const string IoTotalWriteOperations = "io.total_write_operations";
+    public const string IoTotalWriteTime = "io.total_write_time";
 
     public const string StorageAll = "storage.*";
     public const string StorageAttachLoadStorageLatency = "storage.attach_load_storage_latency";

@@ -19,7 +19,7 @@ internal static class ProfilingTreeReader
         ["physical_planner"] = ["column_binding", "create_plan", "resolve_types", "total_time"],
         ["system"] = ["blocked_thread_time", "peak_buffer_memory", "peak_streaming_buffer_size", "peak_temp_dir_size", "total_memory_allocated"],
         ["planner"] = ["binding_time", "total_time"],
-        ["io"] = ["total_bytes_read", "total_bytes_written"],
+        ["io"] = ["total_bytes_read", "total_bytes_written", "total_read_operations", "total_read_time", "total_write_operations", "total_write_time"],
         ["storage"] = ["attach_load_storage_latency", "attach_replay_wal_latency", "checkpoint_latency", "commit_local_storage_latency", "total_vacuum_time", "waiting_to_attach_latency", "wal_replay_entry_count", "write_to_wal_latency"],
         ["parser"] = ["total_time"],
     }.ToFrozenDictionary();

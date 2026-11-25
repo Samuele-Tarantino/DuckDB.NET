@@ -3,7 +3,7 @@
   <PropertyGroup>
     <Description>DuckDB Bindings for C#.</Description>
     <PackageReleaseNotes>
-- Updated to DuckDB v2.0.0
+- Updated to DuckDB v2.0.1
 
 New features:
 - Added binding for duckdb_create_bignum and the DuckDBBignum struct

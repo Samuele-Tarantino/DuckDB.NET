@@ -1,5 +1,7 @@
 New functionality
 
+- Updated the bundled native DuckDB libraries to v2.0.1.
+
 - ProfilingInfo: collect detailed per-query execution profiles and metrics (timing, operator breakdown, runtime statistics).
 
 How to enable

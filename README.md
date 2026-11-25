@@ -68,6 +68,21 @@ private static void PrintQueryResults(DbDataReader queryResult)
 }
 ```
 
+## DuckDB native runtime
+
+The native DuckDB library is not downloaded from the official release in this fork: it comes from the NuGet package
+`Irion.DuckDb.Native.Bridge` (DuckDB with the `bridge` extension), referenced by `DuckDB.NET.Bindings`. It provides the
+`win-x64` and `linux-x64` runtimes. See [Native library (DuckDB with the bridge extension)](#native-library-duckdb-with-the-bridge-extension).
+The DuckDB version of the native library is the one of that package (the Data/Bindings sources follow DuckDB 2.0.1).
+
+## Tests
+
+Run the library test suite from the repository root:
+
+```powershell
+dotnet test .\DuckDB.NET.Test\Test.csproj /p:BuildType=Full
+```
+
 ### Irion Package Build
 
 Use this workflow to build and publish Irion packages. The native DuckDB library is **not** downloaded or bundled
