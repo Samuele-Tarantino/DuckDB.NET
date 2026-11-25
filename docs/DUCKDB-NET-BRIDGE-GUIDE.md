@@ -2,7 +2,7 @@
 
 **Per chi è:** chi scrive o mantiene un host .NET (o il suo assistente AI) che usa `Irion.DuckDB.NET.Data.Full` / `Irion.DuckDB.NET.Bindings.Full` con la libreria nativa `Irion.DuckDb.Native.Bridge`.
 **Cosa descrive:** come il pacchetto si collega alla libreria nativa, la C API del bridge esposta in C# (`DuckDB.NET.Native.Bridge.BridgeMethods`) e le regole d'uso lato .NET. La guida completa dell'estensione (funzioni SQL, pushdown, log, thread, memoria, limiti) è nel pacchetto nativo.
-**Fonti di verità:** [examples/BridgeQuickStart/Program.cs](examples/BridgeQuickStart/Program.cs) (compilato ed eseguito, exit code 0) e `BridgeMethodsTests` (23 test) nel repo `DuckDB.NET`. Se un comportamento non è lì né nella guida del bridge, non è garantito.
+**Fonti di verità:** [examples/BridgeQuickStart/Program.cs](examples/BridgeQuickStart/Program.cs) (compilato ed eseguito, exit code 0) e `BridgeMethodsTests` (23 test, `DuckDB.NET.Test/Bridge/` nel repo `DuckDB.NET`). Se un comportamento non è lì né nella guida del bridge, non è garantito.
 
 ## 1. La libreria nativa
 

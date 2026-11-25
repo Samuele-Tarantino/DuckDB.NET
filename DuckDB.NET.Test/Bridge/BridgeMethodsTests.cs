@@ -1,7 +1,6 @@
-using DuckDB.NET.Native;
 using DuckDB.NET.Native.Bridge;
 
-namespace Irion.DuckDB.NET.Test.Bridge;
+namespace DuckDB.NET.Test.Bridge;
 
 /// <summary>
 /// Tests of the bridge C API (<see cref="BridgeMethods"/>) against the native library shipped by the

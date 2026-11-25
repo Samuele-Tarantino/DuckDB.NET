@@ -236,8 +236,9 @@ How it is wired:
   the runtime assets and copies them to `runtimes/<rid>/native/` in the output of the consuming project.
 - Projects in this repo (tests, benchmarks, samples) get the library transitively. The old `CallExecutable` target and
   the `None` items copying from `obj/runtimes` were removed from `Test.csproj`, `Benchmarks.csproj`,
-  `Irion.DuckDB.NET.Test.csproj` and `Irion.DuckDB.NET.Benchmark.csproj`. `NativeLibraryHelper` /
-  `NativeLibraryLoader` keep loading from `runtimes/<rid>/native`.
+  and `Irion.DuckDB.NET.Benchmark.csproj`. `NativeLibraryHelper` keeps loading from `runtimes/<rid>/native`.
+- The tests of the bridge C API are in `DuckDB.NET.Test/Bridge/BridgeMethodsTests.cs` (the separate
+  `Irion.DuckDB.NET.Test` project was removed).
 - Removed: `DownloadNativeLibs.targets`, the `DownloadNativeLibs`/`CleanNativeLibs` targets, `DuckDbArtifactRoot`,
   `NoNativeText`, and the nightly step of `.github/workflows/ci.yml` (it pointed `DuckDbArtifactRoot` to the latest
   official nightly; it no longer has any effect).
