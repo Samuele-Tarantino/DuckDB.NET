@@ -28,7 +28,8 @@ try
     Console.WriteLine($"join con una tabella locale: {Scalar(delt, "SELECT count(*) FROM dba.ordini o JOIN locale l ON o.id = l.id")}");
 
     // 3. Batch del designer: tra CONNECT e DISCONNECT ogni statement va alla SESSIONE dell'istanza e si manda con
-    //    duckdb_query. DuckDBCommand (che fa la prepare) NON si puo' usare qui dentro.
+    //    duckdb_query, valido con ogni versione di DuckDB. Con DuckDB 2.0.1 funziona anche DuckDBCommand; con la
+    //    2.0.0 NO (fa la prepare: errore di motore duckdb#27269).
     Query(delt, "CONNECT dba");
     Query(delt, "BEGIN");
     Query(delt, "CREATE TEMP TABLE tmp AS SELECT 42 AS x");
@@ -79,7 +80,7 @@ static object? Scalar(DuckDBConnection connection, string sql)
     return command.ExecuteScalar();
 }
 
-// duckdb_query sulla connessione nativa: l'unico modo di eseguire statement fra CONNECT e DISCONNECT.
+// duckdb_query sulla connessione nativa: il modo portabile di eseguire statement fra CONNECT e DISCONNECT.
 static void Query(DuckDBConnection connection, string sql)
 {
     var stato = NativeMethods.Query.DuckDBQuery(connection.NativeConnection, sql, out var result);

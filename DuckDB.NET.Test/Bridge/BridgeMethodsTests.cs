@@ -180,6 +180,27 @@ public sealed class BridgeMethodsTests : IDisposable
     }
 
     [Fact]
+    public void Connect_batch_works_with_DuckDBCommand_since_duckdb_2_0_1()
+    {
+        Register("A");
+        Execute(_delt, "ATTACH 'bridge:A' AS dba");
+
+        // DuckDB 2.0.0 failed here (PREPARE succeeded but the prepared statement was not registered, duckdb#27269):
+        // from 2.0.1 the prepare under CONNECT goes straight to the session and DISCONNECT is not forwarded.
+        Execute(_delt, "CONNECT dba");
+        Execute(_delt, "BEGIN");
+        Execute(_delt, "CREATE TEMP TABLE tmp AS SELECT 7 AS x");
+        Scalar(_delt, "SELECT 1").Should().Be(1);
+        Execute(_delt, "DISCONNECT");
+
+        Scalar(_delt, "SELECT x FROM dba.tmp").Should().Be(7);
+
+        Execute(_delt, "CONNECT dba");
+        Execute(_delt, "ROLLBACK");
+        Execute(_delt, "DISCONNECT");
+    }
+
+    [Fact]
     public void Instance_can_write_to_the_delt_when_the_delt_is_registered_on_it()
     {
         Register("A");

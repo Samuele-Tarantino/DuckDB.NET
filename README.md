@@ -265,7 +265,7 @@ has a raw overload (`Span<byte> error, int errorSize`) and an overload with `out
 |---|---|
 | `RegisterInstance` | `bridge_register_instance` |
 | `UnregisterInstance` | `bridge_unregister_instance` |
-| `WriteStats` | `bridge_write_stats` (since 2.0.0-alpha10) |
+| `WriteStats` | `bridge_write_stats` (since 2.0.0-alpha10; unchanged in 2.0.1-beta1) |
 
 Since `Irion.DuckDb.Native.Bridge` 2.0.0-alpha7 (bridge features 12-13) the registration API is just these two functions. Links,
 materialized/unmaterialized links and the transaction connection (`con_tx`) are gone, together with
@@ -300,9 +300,10 @@ Rules (full details in the bridge `HOST-GUIDE.md`):
 - There is no per-connection grant: anyone who can open a connection on the Delt can use every registered instance.
   Use `ATTACH ... (READ_ONLY)` and control upstream who gets a connection.
 - **Batch** (`CONNECT <alias>` ... `DISCONNECT`, one Delt connection for the whole batch): between `CONNECT` and
-  `DISCONNECT` every statement runs on the session of the instance and must be sent with `duckdb_query`
-  (`NativeMethods.Query.DuckDBQuery`). `DuckDBCommand` prepares the statement and **cannot be used there** (engine
-  limit, duckdb/duckdb#27269, expected fixed in DuckDB 2.0.1); outside the batch `DuckDBCommand` is fine.
+  `DISCONNECT` every statement runs on the session of the instance and may be sent with `duckdb_query`
+  (`NativeMethods.Query.DuckDBQuery`, valid with every DuckDB version). `DuckDBCommand` prepares the statement: it
+  **cannot be used there with DuckDB 2.0.0** (`2.0.0-alpha*` native packages, engine bug duckdb/duckdb#27269) but works
+  from DuckDB 2.0.1 (`Irion.DuckDb.Native.Bridge` 2.0.1+); outside the batch `DuckDBCommand` is always fine.
 - **Writing from the instance**: register the Delt on the instance (`RegisterInstance(instanceConnection, "isoldata",
   deltConnection)`), then on the instance `ATTACH 'bridge:isoldata' AS isoldata` (without `READ_ONLY`) and run
   `CREATE TABLE isoldata.main.t AS SELECT ... FROM <objects of the instance>` or `INSERT INTO isoldata.main.t ...`

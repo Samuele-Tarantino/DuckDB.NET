@@ -25,7 +25,7 @@ public readonly record struct BridgeWriteStats(ulong Rows, ulong Bytes, long Dur
 /// registered on the Delt with <see cref="RegisterInstance(DuckDBNativeConnection, string, DuckDBNativeConnection, Span{byte}, int)"/>.
 /// From then on any connection of the Delt reads it in SQL with <c>ATTACH 'bridge:&lt;name&gt;' AS alias</c>
 /// (optionally <c>(READ_ONLY)</c>) and <c>alias.object</c>; <c>CONNECT alias</c> / <c>DISCONNECT</c> run a batch on the
-/// instance session (use <c>duckdb_query</c>, not prepare, between them). See the bridge HOST-GUIDE.
+/// instance session (with DuckDB 2.0.0 use <c>duckdb_query</c>, not prepare, between them; from 2.0.1 prepare works too). See the bridge HOST-GUIDE.
 /// </para>
 /// <para>
 /// Connections must be <c>duckdb_connection</c> handles of this same library and must stay open for the whole call.

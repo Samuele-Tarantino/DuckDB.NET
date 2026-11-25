@@ -2,13 +2,14 @@
 
 **Per chi è:** chi scrive o mantiene un host .NET (o il suo assistente AI) che usa `Irion.DuckDB.NET.Data.Full` / `Irion.DuckDB.NET.Bindings.Full` con la libreria nativa `Irion.DuckDb.Native.Bridge`.
 **Cosa descrive:** come il pacchetto si collega alla libreria nativa, la C API del bridge esposta in C# (`DuckDB.NET.Native.Bridge.BridgeMethods`) e le regole d'uso lato .NET. La guida completa dell'estensione (funzioni SQL, pushdown, log, thread, memoria, limiti) è nel pacchetto nativo.
-**Fonti di verità:** [examples/BridgeQuickStart/Program.cs](examples/BridgeQuickStart/Program.cs) (compilato ed eseguito, exit code 0) e `BridgeMethodsTests` (23 test, `DuckDB.NET.Test/Bridge/` nel repo `DuckDB.NET`). Se un comportamento non è lì né nella guida del bridge, non è garantito.
+**Fonti di verità:** [examples/BridgeQuickStart/Program.cs](examples/BridgeQuickStart/Program.cs) (compilato ed eseguito, exit code 0) e `BridgeMethodsTests` (24 test, `DuckDB.NET.Test/Bridge/` nel repo `DuckDB.NET`). Se un comportamento non è lì né nella guida del bridge, non è garantito.
 
 ## 1. La libreria nativa
 
 - La libreria nativa **non** è più quella ufficiale di DuckDB: è `Irion.DuckDb.Native.Bridge` (DuckDB 2.0 con l'estensione `bridge` collegata dentro `duckdb.dll` / `libduckdb.so`). Nessun `LOAD`, nessuna `.duckdb_extension`.
 - `Irion.DuckDB.NET.Bindings.Full` ha una **dipendenza** da quel pacchetto, per qualunque `BuildType`; `Data` dipende da Bindings. Chi referenzia Data o Bindings riceve la libreria in `runtimes/<rid>/native/` nella cartella di output (`win-x64` e `linux-x64`), senza altro. I pacchetti `Bindings`/`Data` **non** contengono dll native.
 - La versione della libreria nativa è nel `PackageReference` di `Bindings.csproj` (e nelle dipendenze del `.nuspec` del pacchetto). Per cambiarla: pubblicare il nuovo `Irion.DuckDb.Native.Bridge`, aggiornare la versione, rilanciare i test, rigenerare i pacchetti.
+- **Versione di DuckDB:** le librerie `Irion.DuckDb.Native.Bridge` `2.0.0-alpha*` sono DuckDB 2.0.0; da `2.0.1-beta1` sono DuckDB 2.0.1 (la C API del bridge è la stessa). Cambiano due cose per l'host: `DuckDBCommand` funziona sotto `CONNECT` solo dalla 2.0.1 (§5) e gli scan interrotti da `LIMIT` hanno il piano in `bridge_explain_analyze` solo dalla 2.0.1. Le funzioni profiling di `DuckDB.NET.Data` (metriche `io.*` nuove) richiedono la 2.0.1.
 - **Una sola libreria per processo.** Gli handle (`DuckDBConnection.NativeConnection`, ...) valgono solo con questa libreria: non mischiarli con un altro DuckDB caricato nel processo.
 - Il pacchetto nativo contiene la propria documentazione, della versione del pacchetto: `~/.nuget/packages/irion.duckdb.native.bridge/<versione>/docs/` (`HOST-GUIDE.md` è il riferimento per l'host, `host-claude-snippet.md`, `src/include/bridge_capi.hpp`, esempi). **Usare quella della versione referenziata.**
 
@@ -46,7 +47,7 @@ Le funzioni SQL e le impostazioni (`ATTACH 'bridge:<istanza>'`, `bridge_instance
 5. SQL sulla Delt (DuckDBCommand):                                       ATTACH 'bridge:A' AS dba [(READ_ONLY)]
                                                                          SELECT ... FROM dba.ordini o JOIN locale l ON ...
                                                                          CREATE TABLE isoldata.x AS SELECT * FROM dba.ordini WHERE ...
-6. batch del designer (§5):                                              CONNECT dba; ...; DISCONNECT   (duckdb_query!)
+6. batch del designer (§5):                                              CONNECT dba; ...; DISCONNECT   (DuckDB 2.0.1: anche DuckDBCommand)
 7. chiusura (§7):                                                        DETACH, UnregisterInstance; Delt, POI istanza
 ```
 
@@ -54,12 +55,13 @@ Non c'è più abilitazione per connessione: registrare l'istanza basta, e qualun
 
 `ATTACH ... (READ_ONLY)` lascia passare solo `SELECT` e comandi di transazione: scritture, `CREATE TEMP TABLE` e il batch del §5 sono rifiutati. Per il batch serve un `ATTACH` senza `READ_ONLY`.
 
-## 5. Il batch del designer: `CONNECT` / `DISCONNECT` e `duckdb_query`
+## 5. Il batch del designer: `CONNECT` / `DISCONNECT`
 
 Dopo `CONNECT <alias>` ogni statement della connessione va alla **sessione dell'istanza**, fino a `DISCONNECT`. Regole lato .NET:
 
-- **`DuckDBCommand` non si può usare fra `CONNECT` e `DISCONNECT`.** ADO.NET passa dalla prepare, e sotto `CONNECT` DuckDB 2.0.0 risponde `INTERNAL Error: PREPARE succeeded but the prepared statement was not registered` *dopo* aver già eseguito lo statement (difetto del motore, [duckdb/duckdb#27269](https://github.com/duckdb/duckdb/issues/27269), riferito come risolto in DuckDB 2.0.1: da verificare quando la libreria nativa passa a quella versione).
-- Fra `CONNECT` e `DISCONNECT` (compresi) si usa `duckdb_query`: `NativeMethods.Query.DuckDBQuery(connection.NativeConnection, sql, out var result)`, una SQL alla volta, poi `DuckDBResultError(ref result)` se fallisce e **sempre** `DuckDBDestroyResult(ref result)` (anche dopo un errore). Fuori dal batch `DuckDBCommand` va bene (anche `ATTACH` e il CTAS dell'output).
+- **Con DuckDB 2.0.1 (libreria nativa `Irion.DuckDb.Native.Bridge` 2.0.1 o successiva) `DuckDBCommand` si può usare anche fra `CONNECT` e `DISCONNECT`.** Provato in `BridgeMethodsTests.Connect_batch_works_with_DuckDBCommand_since_duckdb_2_0_1`: `BEGIN`, `CREATE TEMP TABLE` e `SELECT` passano e `DISCONNECT` esce dal batch.
+- **Con DuckDB 2.0.0 (librerie native `2.0.0-alpha*`) no:** ADO.NET passa dalla prepare e DuckDB risponde `INTERNAL Error: PREPARE succeeded but the prepared statement was not registered` *dopo* aver già eseguito lo statement (difetto del motore, [duckdb/duckdb#27269](https://github.com/duckdb/duckdb/issues/27269), corretto in 2.0.1). Con quelle versioni fra `CONNECT` e `DISCONNECT` (compresi) si usa solo `duckdb_query`.
+- **`duckdb_query` resta valido con tutte le versioni** ed è la scelta portabile: `NativeMethods.Query.DuckDBQuery(connection.NativeConnection, sql, out var result)`, una SQL alla volta, poi `DuckDBResultError(ref result)` se fallisce e **sempre** `DuckDBDestroyResult(ref result)` (anche dopo un errore). Fuori dal batch `DuckDBCommand` va sempre bene (anche `ATTACH` e il CTAS dell'output).
 - **Una connessione della Delt per tutto il batch**: la sessione è della connessione. Un'altra connessione non vede le TEMP né la transazione.
 - Dopo il primo statement sotto `CONNECT` le letture di quel catalogo, da quella connessione, vanno sulla sessione (vedono TEMP e transazione) anche dopo `DISCONNECT`.
 - La Delt è in autocommit: l'output già scritto (`CREATE TABLE isoldata.out ...`) **non si annulla** con il `ROLLBACK` del designer su A.
